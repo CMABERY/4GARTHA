@@ -3,4 +3,4 @@ set -euo pipefail
 
 export PATH="$(pwd)/cli:$PATH"
 
-nre-verify-fixtures --all
+python3 cli/nre-verify-fixtures --all
