@@ -1,4 +1,4 @@
-name: ci
+name: Governance Gates
 
 on:
   pull_request:
@@ -7,7 +7,8 @@ on:
 
 jobs:
   ledger:
-    runs-on: ubuntu-latest
+    name: Sprint-1 Frozen Gate
+runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
@@ -39,7 +40,8 @@ jobs:
           python tools/replay_new_nodes.py "origin/${{ github.base_ref || 'main' }}"
 
   sprint1:
-    runs-on: ubuntu-latest
+    name: Sprint-1 Frozen Gate
+runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:

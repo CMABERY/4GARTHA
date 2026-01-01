@@ -1,0 +1,12 @@
+# LAW: append-only truth substrate (must not be rewritten)
+/ledger/objects/  @Boss
+/ledger/nodes/    @Boss
+
+# Governance gates and verifier fencepost
+/.github/workflows/ @Boss
+/ci/                @Boss
+/schemas/           @Boss
+/canon/             @Boss
+/verify/            @Boss
+/fixtures/          @Boss
+/cli/               @Boss
