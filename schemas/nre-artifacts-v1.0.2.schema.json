@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/schemas/nre-artifacts-v1.0.2.schema.json",
+  "title": "NRE Artifacts Schema v1.0.2 (Sprint-1 fencepost)",
+  "type": "object",
+  "oneOf": [
+    {"$ref": "#/$defs/CAP"},
+    {"$ref": "#/$defs/WSS"},
+    {"$ref": "#/$defs/DSS"}
+  ],
+  "$defs": {
+    "sha256_prefixed": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "CAP": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "version", "payload"],
+      "properties": {
+        "kind": {"const": "cap"},
+        "version": {"const": "1.0.2"},
+        "payload": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      }
+    },
+    "WSS": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "version", "payload", "hash"],
+      "properties": {
+        "kind": {"const": "wss"},
+        "version": {"const": "1.0.2"},
+        "payload": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "hash": {"$ref": "#/$defs/sha256_prefixed"}
+      }
+    },
+    "DSS": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "version", "requires_non_null_hash", "hash"],
+      "properties": {
+        "kind": {"const": "dss"},
+        "version": {"const": "1.0.2"},
+        "requires_non_null_hash": {"type": "boolean"},
+        "hash": {
+          "anyOf": [
+            {"$ref": "#/$defs/sha256_prefixed"},
+            {"type": "null"}
+          ]
+        }
+      }
+    }
+  }
+}

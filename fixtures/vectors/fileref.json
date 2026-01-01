@@ -1,0 +1,8 @@
+{
+  "tests": [
+    {
+      "expect": "sha256:aaf9ff488e0767da5ea1d56118e6f65a16c5633b0cefc1fa089bd3ab1810613d",
+      "path": "sample.txt"
+    }
+  ]
+}

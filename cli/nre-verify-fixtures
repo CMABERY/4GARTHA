@@ -1,0 +1,25 @@
+#!/usr/bin/env python3
+"""Sprint-1 fixture verifier entrypoint.
+
+Thin wrapper over `verify/verify.py`.
+
+Make available by adding ./cli to PATH.
+"""
+
+from __future__ import annotations
+
+import sys
+from pathlib import Path
+
+
+def main() -> int:
+    repo_root = Path(__file__).resolve().parents[1]
+    sys.path.insert(0, str(repo_root))
+
+    from verify.verify import main as _main
+
+    return _main(sys.argv[1:])
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

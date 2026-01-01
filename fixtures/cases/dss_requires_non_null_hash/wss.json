@@ -1,0 +1,8 @@
+{
+  "kind": "wss",
+  "version": "1.0.2",
+  "payload": {
+    "x": 3
+  },
+  "hash": "sha256:54afd0d590e6b277d9cd1ce46e5480f683682e43b6b480f7d24906d9e935e44c"
+}

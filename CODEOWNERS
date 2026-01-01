@@ -1,0 +1,5 @@
+# Tighten as needed.
+ledger/nodes/  @CMABERY
+ledger/objects/ @CMABERY
+tools/         @CMABERY
+.github/       @CMABERY

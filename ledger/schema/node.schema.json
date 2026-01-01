@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "id": {
+      "pattern": "^[a-f0-9]{64}$",
+      "type": "string"
+    },
+    "meta": {
+      "type": "object"
+    },
+    "parents": {
+      "items": {
+        "pattern": "^[a-f0-9]{64}$",
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "transform": {
+      "additionalProperties": false,
+      "properties": {
+        "digest": {
+          "pattern": "^[a-f0-9]{64}$",
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "params": {
+          "type": "object"
+        }
+        ,
+        "runner": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "type": "array"
+        },
+        "env_digest": {
+          "pattern": "^[a-f0-9]{64}$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "digest",
+        "params"
+      ],
+      "type": "object"
+    }
+  },
+  "required": [
+    "id",
+    "parents",
+    "transform"
+  ],
+  "title": "Epistemic Ledger Node Manifest",
+  "type": "object"
+}

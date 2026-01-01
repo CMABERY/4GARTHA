@@ -1,0 +1,28 @@
+{
+  "trace": {
+    "case": "dss_requires_non_null_hash",
+    "inputs": {
+      "cap": {
+        "raw_sha256": "sha256:bc43de8eea1b13ed467b1dd75ce55baec4b7e7f64f717bf7a9d11d598816db7f"
+      },
+      "dss": {
+        "raw_sha256": "sha256:ef59521000f0810980f28e335b6bcdfb7e52d62be6fd674b3031e872e6e125f5"
+      },
+      "wss": {
+        "raw_sha256": "sha256:1c10e27cc0ba5b7c53f89217a7b838f578a9c9a1f142510470020f64d2668ab2"
+      }
+    }
+  },
+  "verify": {
+    "computed": {
+      "wss_payload_hash": "sha256:54afd0d590e6b277d9cd1ce46e5480f683682e43b6b480f7d24906d9e935e44c"
+    },
+    "errors": [
+      "DSS_REQUIRES_NON_NULL_HASH"
+    ],
+    "exit_code": 11,
+    "ok": false,
+    "schema_errors": [],
+    "schema_sha256": "2b62afa2c7e699932e7a45bf6031e57c114b840bf934c0d57a660628110d0697"
+  }
+}

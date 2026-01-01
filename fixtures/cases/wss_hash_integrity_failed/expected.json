@@ -1,0 +1,29 @@
+{
+  "trace": {
+    "case": "wss_hash_integrity_failed",
+    "inputs": {
+      "cap": {
+        "raw_sha256": "sha256:0f2f4b857e725f79ac896ad247aa2bdd69d4ff2301dc3bbc69e77f5a9111e79d"
+      },
+      "dss": {
+        "raw_sha256": "sha256:66d3cc526bbaabbe6bb65fffbf0c26635350cd6b6ac991590384d45b7943eabf"
+      },
+      "wss": {
+        "raw_sha256": "sha256:f89fccb3b29c8368ecf2499c80b4b9ea092491f20dd73627b5ff447bf8ded393"
+      }
+    }
+  },
+  "verify": {
+    "computed": {
+      "wss_payload_hash": "sha256:5e2b030a4a0f1582d78c0fd9924511cd6b1f2df9879e574f5ea1406c94052418",
+      "wss_payload_hash_expected": "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    "errors": [
+      "WSS_HASH_INTEGRITY_FAILED"
+    ],
+    "exit_code": 10,
+    "ok": false,
+    "schema_errors": [],
+    "schema_sha256": "2b62afa2c7e699932e7a45bf6031e57c114b840bf934c0d57a660628110d0697"
+  }
+}

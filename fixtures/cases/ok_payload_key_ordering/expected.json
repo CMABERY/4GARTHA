@@ -1,0 +1,26 @@
+{
+  "trace": {
+    "case": "ok_payload_key_ordering",
+    "inputs": {
+      "cap": {
+        "raw_sha256": "sha256:97ed5fe7e148965819daf962a7664052cce2901205d80d4e786dbe3b51ffb3e1"
+      },
+      "dss": {
+        "raw_sha256": "sha256:a6226e00bc06842b884d4e3445bd6f4f72e658adbdb716eae5724d88e5603fb3"
+      },
+      "wss": {
+        "raw_sha256": "sha256:b2909288b3f67768f09ddc9b902e3451d23c881df074331a7fa550691d934b1d"
+      }
+    }
+  },
+  "verify": {
+    "computed": {
+      "wss_payload_hash": "sha256:43258cff783fe7036d8a43033f830adfc60ec037382473548ac742b888292777"
+    },
+    "errors": [],
+    "exit_code": 0,
+    "ok": true,
+    "schema_errors": [],
+    "schema_sha256": "2b62afa2c7e699932e7a45bf6031e57c114b840bf934c0d57a660628110d0697"
+  }
+}
