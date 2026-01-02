@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # Local hardening: reject any modify/delete/rename/copy under ledger/objects or ledger/nodes.
-python tools/check_append_only.py --cached
+py -3 tools/check_append_only.py --cached
 
 # Sprint-1 fencepost (Frozen): run verifier when relevant files are staged.
 CHANGED="$(git diff --cached --name-only)"
