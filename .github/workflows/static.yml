@@ -32,6 +32,16 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      # Ensure scripts directory exists before writing files to prevent write failures
+      - name: Ensure scripts directory
+        run: mkdir -p scripts
+
+      - name: Ensure scripts directory (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path scripts -Force | Out-Null
+
       - name: Setup Pages
         uses: actions/configure-pages@v5
 
