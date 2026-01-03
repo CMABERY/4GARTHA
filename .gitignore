@@ -6,9 +6,3 @@ __pycache__/
 build/
 dist/
 *.egg-info/
-
-# Temporary verification artifacts
-/tmp/root-entropy-check*/
-ingest_out.json
-ingest_err.txt
-verify_result.txt
