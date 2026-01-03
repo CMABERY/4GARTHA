@@ -19,7 +19,7 @@ from typing import Any, Dict
 # Import shared canonicalization utilities
 repo_root = Path(__file__).resolve().parent
 sys.path.insert(0, str(repo_root))
-from canon.root_entropy import canonical_json_bytes, sha256_hex
+from canon.ids import canon_json_bytes, sha256_hex
 
 
 def ingest_root_entropy(fixture_path: Path) -> Dict[str, Any]:
@@ -57,7 +57,7 @@ def ingest_root_entropy(fixture_path: Path) -> Dict[str, Any]:
     }
     
     # Compute node_id as sha256 of canonical node_record
-    canonical_bytes = canonical_json_bytes(node_record)
+    canonical_bytes = canon_json_bytes(node_record)
     node_id = sha256_hex(canonical_bytes)
     
     return {
@@ -79,7 +79,8 @@ def main() -> int:
     try:
         result = ingest_root_entropy(fixture_path)
         # Output canonical JSON to stdout
-        print(json.dumps(result, sort_keys=True, separators=(',', ':'), ensure_ascii=False))
+        output = json.dumps(result, sort_keys=True, separators=(',', ':'), ensure_ascii=False)
+        print(output)
         return 0
     except Exception as e:
         print(f"Error ingesting fixture: {e}", file=sys.stderr)

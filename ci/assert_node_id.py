@@ -17,7 +17,7 @@ from typing import Any
 # Import shared canonicalization utilities
 repo_root = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(repo_root))
-from canon.root_entropy import canonical_json_bytes, sha256_hex
+from canon.ids import canon_json_bytes, sha256_hex
 
 
 def main() -> int:
@@ -57,7 +57,7 @@ def main() -> int:
         return 1
     
     # Recompute node_id from node_record
-    canonical_bytes = canonical_json_bytes(node_record)
+    canonical_bytes = canon_json_bytes(node_record)
     recomputed_node_id = sha256_hex(canonical_bytes)
     
     # Verify node_id matches recomputed hash
