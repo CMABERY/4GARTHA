@@ -31,7 +31,7 @@ jobs:
       - name: Enforce append-only nodes/objects
         # For PRs, compare against the PR base branch tip.
         run: |
-          git fetch origin "${{ github.base_ref || 'main' }}" --depth=1
+          git fetch origin "${{ github.base_ref || 'main' }}"
           python tools/check_append_only.py "origin/${{ github.base_ref || 'main' }}"
 
       - name: Replay derivations for newly added nodes (strong verification)
