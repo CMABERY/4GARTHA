@@ -41,14 +41,17 @@ jq -S . commit-fixtures/commit_noquote.json | head -40
 
 #### 2-6. Signature verification
 ```bash
+# From repository root
 mkdir -p /tmp/verify-temp && cd /tmp/verify-temp
-jq -r '.ak_public_pem_base64' ../commit-fixtures/commit_noquote.json | base64 -d > ak.pem
-jq -r '.signature_base64' ../commit-fixtures/commit_noquote.json | base64 -d > sig.bin
+jq -r '.ak_public_pem_base64' /path/to/commit-fixtures/commit_noquote.json | base64 -d > ak.pem
+jq -r '.signature_base64' /path/to/commit-fixtures/commit_noquote.json | base64 -d > sig.bin
 openssl pkey -pubin -in ak.pem -text -noout
 openssl pkey -pubin -in ak.pem -outform DER -out ak.der
 AK_FP=$(sha256sum ak.der | awk '{print $1}')
 # ... (continue with statement reconstruction and verification)
 ```
+
+Note: Replace `/path/to/commit-fixtures/` with the actual path to your commit-fixtures directory.
 
 #### 7. Check for raw entropy
 ```bash

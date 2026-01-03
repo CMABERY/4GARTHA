@@ -122,7 +122,7 @@ if ! openssl pkey -pubin -in ak.pem -text -noout > ak_info.txt 2>&1; then
 fi
 
 log_info "AK public key info:"
-cat ak_info.txt | head -20
+head -20 ak_info.txt
 
 if ! grep -q "RSA Public-Key" ak_info.txt; then
     log_error "AK key is not RSA. Current code expects RSA keys."
@@ -155,6 +155,7 @@ export AK_FP
 # ============================================================================
 log_step 5 "Reconstruct canonical signed statement bytes"
 
+export FIXTURE_JSON
 python3 - <<'PY'
 import json
 import os
@@ -162,6 +163,8 @@ import sys
 
 try:
     fixture_path = os.environ.get('FIXTURE_JSON')
+    if not fixture_path:
+        raise ValueError("FIXTURE_JSON environment variable not set")
     with open(fixture_path, 'r', encoding='utf-8') as f:
         commit = json.load(f)
     
@@ -289,7 +292,6 @@ log_info "Checking quote-related fields..."
 QUOTE_MSG=$(jq -r '.tpm_quote_msg_base64 // empty' "${FIXTURE_JSON}")
 QUOTE_SIG=$(jq -r '.tpm_quote_sig_base64 // empty' "${FIXTURE_JSON}")
 QUOTE_PCRS=$(jq -r '.tpm_quote_pcrs_base64 // empty' "${FIXTURE_JSON}")
-QUOTE_NONCE=$(jq -r '.tpm_quote_nonce_sha256 // empty' "${FIXTURE_JSON}")
 
 if [ -n "${QUOTE_MSG}" ] || [ -n "${QUOTE_SIG}" ] || [ -n "${QUOTE_PCRS}" ]; then
     log_warn "Quote fields are non-empty for a noquote fixture"

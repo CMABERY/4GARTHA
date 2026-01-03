@@ -12,21 +12,14 @@ Output format (JSON to stdout):
 """
 
 import json
-import hashlib
 import sys
 from pathlib import Path
 from typing import Any, Dict
 
-
-def canonical_json_bytes(obj: Any) -> bytes:
-    """Produce canonical JSON bytes with sorted keys and compact separators."""
-    s = json.dumps(obj, sort_keys=True, separators=(',', ':'), ensure_ascii=False)
-    return s.encode('utf-8')
-
-
-def sha256_hex(data: bytes) -> str:
-    """Compute SHA256 hex digest of bytes."""
-    return hashlib.sha256(data).hexdigest()
+# Import shared canonicalization utilities
+repo_root = Path(__file__).resolve().parent
+sys.path.insert(0, str(repo_root))
+from canon.root_entropy import canonical_json_bytes, sha256_hex
 
 
 def ingest_root_entropy(fixture_path: Path) -> Dict[str, Any]:
