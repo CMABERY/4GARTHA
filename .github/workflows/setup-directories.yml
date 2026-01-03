@@ -81,8 +81,8 @@ jobs:
       # - Identifies missing imports based on code patterns
       # - Adds necessary import statements
       # - Ensures proper dependency declarations
-      # Note: Generated during workflow execution to ensure latest version
-      - name: Generate and run import fixer
+      # Note: The script is committed in the repository and run during CI
+      - name: Run import fixer
         shell: bash
         run: |
           echo "Verifying insert_fix_tools_imports.py exists..."
