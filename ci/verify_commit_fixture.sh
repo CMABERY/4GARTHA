@@ -10,7 +10,7 @@
 # 6. Verify RSA signature using OpenSSL
 # 7. Sanity-check no raw entropy committed
 # 8. Run ingest and assert node_id contract
-# 9. Manual recompute (debug)
+# 9. Manual recompute (debug) - now uses canon.ids
 # 10. Check quote fields are empty (for noquote fixture)
 #
 # Usage:
@@ -156,21 +156,34 @@ export AK_FP
 log_step 5 "Reconstruct canonical signed statement bytes"
 
 export FIXTURE_JSON
+export REPO_ROOT
+
+# Use the single canonicalizer in canon/ids.py to emit the exact bytes.
+# For noquote fixtures we must set the tpm_quote fields to null in the statement,
+# even if the fixture contains empty strings or other quote-related fields.
 python3 - <<'PY'
 import json
 import os
 import sys
+from pathlib import Path
 
 try:
     fixture_path = os.environ.get('FIXTURE_JSON')
-    if not fixture_path:
-        raise ValueError("FIXTURE_JSON environment variable not set")
+    repo_root = os.environ.get('REPO_ROOT')
+    if not fixture_path or not repo_root:
+        raise ValueError("FIXTURE_JSON and REPO_ROOT environment variables must be set")
+
+    # Ensure repo root is on sys.path so we can import canon.ids
+    sys.path.insert(0, repo_root)
+    from canon.ids import canon_json_bytes
+
     with open(fixture_path, 'r', encoding='utf-8') as f:
         commit = json.load(f)
-    
+
     ak_fp = os.environ['AK_FP']
-    
-    # Construct canonical statement (matching what the generator signed)
+
+    # Build the statement that was signed for the noquote fixture.
+    # Note: tpm_quote_* fields are explicitly null for noquote fixtures.
     stmt = {
         "v": 1,
         "node_type": "root_entropy",
@@ -178,18 +191,17 @@ try:
         "entropy_length_bytes": int(commit["entropy_length_bytes"]),
         "root_hash": commit["root_hash"],
         "ak_pubkey_fp_sha256": ak_fp,
-        "tpm_quote_sha256": commit.get("tpm_quote_sha256"),
-        "tpm_quote_nonce_sha256": commit.get("tpm_quote_nonce_sha256")
+        "tpm_quote_sha256": None,
+        "tpm_quote_nonce_sha256": None
     }
-    
-    # Canonical JSON: sorted keys, compact separators
-    s = json.dumps(stmt, sort_keys=True, separators=(',', ':'), ensure_ascii=False)
-    
-    with open('statement.bin', 'wb') as f:
-        f.write(s.encode('utf-8'))
-    
+
+    b = canon_json_bytes(stmt)
+
+    # Write the canonical bytes exactly as used by other Python code
+    Path('statement.bin').write_bytes(b)
+
     print("Canonical statement (JSON):")
-    print(s)
+    print(b.decode('utf-8'))
 except Exception as e:
     print(f"Error: {e}", file=sys.stderr)
     sys.exit(1)
@@ -220,14 +232,15 @@ fi
 # ============================================================================
 log_step 7 "Sanity-check that no raw entropy was committed"
 
-log_info "Checking for offensive field names..."
-if jq -e 'has("entropy_bin") or has("entropy_base64") or has("raw_entropy")' "${FIXTURE_JSON}" > /dev/null 2>&1; then
-    log_error "WARNING: raw entropy present in fixture!"
-    jq 'keys' "${FIXTURE_JSON}"
+log_info "Checking for suspicious field names anywhere in the fixture..."
+# Reject any key anywhere matching sensitive names (case-insensitive)
+if jq -e '.. | objects | keys[]? | select(test("entropy|seed|random|raw"; "i"))' "${FIXTURE_JSON}" >/dev/null; then
+    log_error "Suspicious field name suggests raw entropy leakage"
+    jq -r '.. | objects | keys[]? | select(test("entropy|seed|random|raw"; "i"))' "${FIXTURE_JSON}"
     exit 1
 fi
 
-log_info "✓ No obvious raw entropy fields found"
+log_info "✓ No suspicious field names found"
 
 log_info "All fields in fixture:"
 jq -r 'keys_unsorted[] as $k | "\($k): \(.[$k] | type)"' "${FIXTURE_JSON}"
@@ -254,30 +267,34 @@ if ! python3 "${REPO_ROOT}/ci/assert_node_id.py" ingest_out.json "${FIXTURE_NODE
 fi
 
 # ============================================================================
-# Step 9: Manual recompute (debug)
+# Step 9: Manual recompute (debug verification) - use canonicalizer to avoid drift
 # ============================================================================
 log_step 9 "Manual recompute (debug verification)"
 
 python3 - <<'PY'
 import json
-import hashlib
+import os
+import sys
 
-with open('ingest_out.json', 'r') as f:
+repo_root = os.environ.get("REPO_ROOT") or ".."
+sys.path.insert(0, repo_root)
+
+from canon.ids import canon_json_bytes, sha256_hex
+
+with open('ingest_out.json', 'r', encoding='utf-8') as f:
     o = json.load(f)
 
 node_id = o['node_id']
 node_rec = o['node_record']
 
-s = json.dumps(node_rec, sort_keys=True, separators=(',', ':'), ensure_ascii=False).encode('utf-8')
-h = hashlib.sha256(s).hexdigest()
+h = sha256_hex(canon_json_bytes(node_rec))
 
 print(f"node_id from ingest: {node_id}")
 print(f"recomputed sha256  : {h}")
 print(f"Match: {node_id == h}")
 
 if node_id != h:
-    import sys
-    sys.exit(1)
+    raise SystemExit(1)
 PY
 
 log_info "✓ Manual recompute matches"
@@ -292,12 +309,14 @@ log_info "Checking quote-related fields..."
 QUOTE_MSG=$(jq -r '.tpm_quote_msg_base64 // empty' "${FIXTURE_JSON}")
 QUOTE_SIG=$(jq -r '.tpm_quote_sig_base64 // empty' "${FIXTURE_JSON}")
 QUOTE_PCRS=$(jq -r '.tpm_quote_pcrs_base64 // empty' "${FIXTURE_JSON}")
+QUOTE_NONCE=$(jq -r '.tpm_quote_nonce_sha256 // empty' "${FIXTURE_JSON}")
 
-if [ -n "${QUOTE_MSG}" ] || [ -n "${QUOTE_SIG}" ] || [ -n "${QUOTE_PCRS}" ]; then
+if [ -n "${QUOTE_MSG}" ] || [ -n "${QUOTE_SIG}" ] || [ -n "${QUOTE_PCRS}" ] || [ -n "${QUOTE_NONCE}" ]; then
     log_warn "Quote fields are non-empty for a noquote fixture"
     echo "  tpm_quote_msg_base64: ${QUOTE_MSG}"
     echo "  tpm_quote_sig_base64: ${QUOTE_SIG}"
     echo "  tpm_quote_pcrs_base64: ${QUOTE_PCRS}"
+    echo "  tpm_quote_nonce_sha256: ${QUOTE_NONCE}"
     log_warn "Re-generate fixture with ENABLE_QUOTE=0 if this is unexpected"
 else
     log_info "✓ Quote fields are empty (as expected for noquote fixture)"
