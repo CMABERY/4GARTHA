@@ -21,4 +21,5 @@ dev = [
 ledger = "ledger.cli:main"
 
 [tool.pytest.ini_options]
-testpaths = ["tests"]
+testpaths = ["tests", "."]
+python_files = ["test_*.py"]
