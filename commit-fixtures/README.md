@@ -2,6 +2,10 @@
 
 This directory contains cryptographically signed root_entropy node fixtures used for testing and verification.
 
+## Current Status
+
+**Note**: This directory is ready to receive fixtures but currently contains no fixture files. Fixtures will be added once generated using the TPM-based generator with the appropriate configuration.
+
 ## Structure
 
 Each fixture consists of two files:
