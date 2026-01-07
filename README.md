@@ -113,3 +113,35 @@ This installs `.git/hooks/pre-commit` which:
 
 - rejects modify/delete/rename/copy under `ledger/objects/**` and `ledger/nodes/**`
 - runs `nre-verify-fixtures --all` when Sprint-1-relevant files are staged
+
+## Root Entropy Commit Fixtures
+
+The repository includes infrastructure for verifying TPM-signed root entropy commit fixtures.
+
+### Quick Verification
+
+Verify a commit fixture with the comprehensive verification script:
+
+```bash
+bash ci/verify_commit_fixture.sh commit_noquote
+```
+
+This runs all 10 verification steps including:
+- RSA signature verification against AK public key
+- Canonical statement reconstruction and validation
+- Node ID contract verification
+- Raw entropy safety checks
+
+### Manual Verification
+
+For step-by-step verification or debugging:
+
+```bash
+# Ingest fixture and produce canonical node record
+python3 ingest_root_entropy.py commit-fixtures/commit_noquote.json > ingest_out.json
+
+# Verify node_id contract
+python3 ci/assert_node_id.py ingest_out.json commit-fixtures/commit_noquote.node_id
+```
+
+See `commit-fixtures/README.md` for detailed documentation and troubleshooting.
