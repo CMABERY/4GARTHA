@@ -1,1 +1,2 @@
-__all__ = ["cas", "manifest", "replay", "verify"]
+__all__ = ["cas", "manifest", "replay", "verify", "locks"]
+
