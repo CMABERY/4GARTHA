@@ -12,3 +12,4 @@ dist/
 ingest_out.json
 ingest_err.txt
 verify_result.txt
+/ledger/.locks/
