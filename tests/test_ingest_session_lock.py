@@ -32,7 +32,12 @@ def test_ingest_session_lock_blocks_other_processes() -> None:
         _init_repo(repo_root)
 
         lp = ingest_session_lock_path(repo_root)
+        # OS-agnostic check of suffix parts.
         assert lp.parts[-3:] == ("ledger", ".locks", "ingest.lock")
+
+        # Directory is created on lock acquisition (advisory lock file lives here).
+        with ingest_session_lock(repo_root):
+            assert lp.parent.exists()
 
         ready_parent, ready_child = ctx.Pipe()
         ctrl_parent, ctrl_child = ctx.Pipe()
@@ -57,4 +62,3 @@ def test_ingest_session_lock_blocks_other_processes() -> None:
         p1.join(timeout=5)
         assert p1.exitcode == 0
         assert p2.exitcode == 0
-
