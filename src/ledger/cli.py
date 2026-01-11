@@ -4,6 +4,8 @@ import argparse
 import json
 from pathlib import Path
 from typing import Any, Dict
+from .locks import ingest_session_lock, ingest_session_lock_enabled
+
 
 from .cas import CasPaths, sha256_file, sha256_bytes, store_blob
 from .manifest import Node, Transform, write_node_manifest
@@ -121,6 +123,20 @@ def cmd_refs_get(args: argparse.Namespace) -> int:
         raise SystemExit(f"missing ref: {refp}")
     print(refp.read_text(encoding="utf-8").strip())
     return 0
+def _do_ingest() -> str:
+        # existing ingest logic that ends with:
+        # write_node_manifest(repo_root, node)
+        # return artifact_id
+    return artifact_id
+
+    if ingest_session_lock_enabled(cli_no_session_lock=bool(getattr(args, "no_session_lock", False))):
+        with ingest_session_lock(repo_root):
+            artifact_id = _do_ingest()
+    else:
+        artifact_id = _do_ingest()
+
+    print(artifact_id)
+    return 0
 
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="ledger", description="Epistemic Ledger CLI (minimal kernel).")
@@ -140,6 +156,12 @@ def build_parser() -> argparse.ArgumentParser:
         action="append",
         help="Replay runner command prefix (repeatable), e.g. --runner python3 --runner -I.",
     )
+    p_ing.add_argument(
+    "--no-session-lock",
+    action="store_true",
+    help="Disable repo-wide ingest-session lock (not recommended).",
+)
+
     p_ing.add_argument(
         "--env-digest",
         help="sha256 of the execution environment description (lockfile/nix flake/container recipe).",
