@@ -32,7 +32,7 @@ def test_ingest_session_lock_blocks_other_processes() -> None:
         _init_repo(repo_root)
 
         lp = ingest_session_lock_path(repo_root)
-        assert str(lp).endswith("ledger/.locks/ingest.lock")
+        assert lp.parts[-3:] == ("ledger", ".locks", "ingest.lock")
 
         ready_parent, ready_child = ctx.Pipe()
         ctrl_parent, ctrl_child = ctx.Pipe()
@@ -57,3 +57,4 @@ def test_ingest_session_lock_blocks_other_processes() -> None:
         p1.join(timeout=5)
         assert p1.exitcode == 0
         assert p2.exitcode == 0
+
