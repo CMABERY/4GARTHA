@@ -25,7 +25,6 @@ def ingest_session_lock_path(repo_root: Path) -> Path:
     """
     return Path(repo_root) / "ledger" / ".locks" / "ingest.lock"
 
-
 @contextmanager
 def file_lock(lock_path: Path) -> Iterator[None]:
     """
@@ -111,3 +110,6 @@ def ingest_session_lock_enabled(*, cli_no_session_lock: bool = False) -> bool:
         return False
 
     return True
+
+
+
