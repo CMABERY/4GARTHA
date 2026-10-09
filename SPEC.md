@@ -1,71 +1,134 @@
-# Spec: Minimal Accounting Kernel
+# Spec: ledger records, protocol `4gartha.record/1`
 
-## Node manifest (canonical)
+This is the normative byte-level format. What a verifier may conclude from these bytes, and against
+whom, is defined in [ASSURANCE.md](ASSURANCE.md). Where this file and the conformance tests disagree,
+the tests win ([LAW-0001](LAW-0001_Names_NonNormative_Tests_Normative.md)) and this file is the bug.
 
-A node is identified by the **sha256 of the artifact bytes**.
+## Two identities
 
-The manifest lives at:
+| Identity | Definition | Stored at |
+| --- | --- | --- |
+| Artifact ID | `SHA-256(artifact bytes)`, 64 lowercase hex | `ledger/objects/<first 2 hex>/<artifact ID>` |
+| Record ID | `SHA-256(UTF-8("4gartha.record/1") ‖ 0x00 ‖ canonical bytes of the record)`, 64 lowercase hex | `ledger/records/<record ID>.json` |
 
-- `ledger/nodes/<sha256>.json`
+An artifact ID names bytes. A record ID names a *claim about* artifacts. The two are never
+interchangeable: every reference in a record is typed by its field name (`artifact` or `record`).
 
-The artifact bytes live at:
+The domain tag means a record ID never equals the plain SHA-256 of its stored file, and a future
+protocol (with its own tag) cannot produce IDs that collide with v1 IDs by construction.
 
-- `ledger/objects/<first2>/<sha256>` (or managed via Git LFS / external CAS; path stays stable)
+A record file contains exactly the record's canonical bytes: no trailing newline, no other content.
 
-### Fields
+## Canonical encoding
 
-- `id` (string): sha256 hex of artifact bytes
-- `parents` (array[string]): ordered parent ids (sha256)
-- `transform` (object):
-  - `name` (string): human label (not semantic)
-  - `digest` (string): sha256 hex of transform definition (semantic)
-  - `params` (object): canonical parameters (semantic)
-- `meta` (object): non-semantic metadata (timestamps, notes, etc.)
+Implemented in `src/ledger/canonical.py`.
 
-Manifests are validated against `ledger/schema/node.schema.json` (packaged with the verifier as
-`src/ledger/node.schema.json`), `id` must equal the digest the manifest is stored under, and a node
-may not list itself as a parent. Missing fields are errors, never defaults.
+- UTF-8, no byte-order mark.
+- Object keys sorted by code point; separators `,` and `:` with no whitespace; non-ASCII characters
+  written literally (never `\u` escapes, except where JSON requires them).
+- Permitted values: objects, arrays, strings, integers within ±(2⁵³−1), `true`, `false`, `null`.
+- **Rejected, never normalized:** floats (including `1.0`), NaN/Infinity, larger integers, strings
+  that are not NFC-normalized, lone surrogates, non-ASCII object keys, duplicate keys, nesting
+  deeper than 32.
+- A decoder accepts a file only if re-encoding its parsed value reproduces the file byte for byte.
 
-## Truth boundary
+Rationale: every one of the rejected cases would need a normalization policy, and any normalization
+lets two different inputs share an identity or one input acquire two.
 
-Semantic validity (weak) requires only:
+## Record kinds
 
-1. `id` matches artifact bytes
-2. every `parents[i]` is reachable (its manifest exists) and is itself valid
-3. `transform.digest` and `transform.params` are present (their interpretation is domain-defined)
+Schema: `ledger/schema/record.schema.json` (identical to the packaged
+`src/ledger/record.schema.json`, which is what the verifier uses). Every field is required, no other
+fields are permitted, and **every field is identity-bearing**. There is no non-semantic metadata.
+Human-friendly names belong in refs.
 
-Everything else is downstream projection.
+### Admission: a root of evidence
 
-## Strong verification: derivation replay
-
-If you need the Derivation axiom ("child = deterministic transform(parents)") to be *machine-checked*,
-you can require **replayable transforms**.
-
-Minimal replay contract (v0):
-
-- `transform.digest` must refer to a blob in the CAS (stored under `ledger/objects/`), containing an
-  executable transform definition (by default, a Python script).
-- Optional `transform.runner` pins the entrypoint as an argv prefix (e.g. `["python3", "-I"]`).
-- Optional `transform.env_digest` pins an environment description (lockfile/Nix flake/container recipe).
-
-Replay materializes ordered parents under a workdir and executes:
-
-```
-<runner...> <transform_script> \
-  --parents-manifest <workdir>/parents.json \
-  --parents-dir <workdir>/parents \
-  --params-path <workdir>/params.json \
-  --out <workdir>/out.bin
+```json
+{
+  "protocol": "4gartha.record/1",
+  "kind": "admission",
+  "output": {"artifact": "<artifact ID>"},
+  "basis": {"kind": "unattested", "statement": "<1..4096 chars>"}
+}
 ```
 
-Replay succeeds iff `sha256(out.bin) == node.id`.
+`basis` is the declared trust basis. In v1 the only kind is `unattested`: a statement of where the
+artifact came from and why it is admitted. It is a claim, not evidence. Any other basis kind, and
+any signature-like field, is rejected by the schema, so no v1 record can appear authenticated
+(ASSURANCE.md, Authenticity).
 
-Notes:
+### Derivation: an output claimed to result from a transform
 
-- Root/admission nodes (no parents) have no derivation to replay.
-- Before executing anything, replay checks that the transform definition, the environment description
-  (if any) and every parent blob hash to their declared digests.
-- Each replay runs in a fresh, empty run directory (created inside `--workdir` when given), so only
-  output produced by that run is checked.
-- `verify-reachable` rejects cycles and replays only after the whole reachable graph passes integrity checks.
-- Replay executes code; run it only inside an appropriate sandbox for your threat model.
+```json
+{
+  "protocol": "4gartha.record/1",
+  "kind": "derivation",
+  "output": {"artifact": "<artifact ID>"},
+  "inputs": [{"record": "<record ID>"}, ...],
+  "transform": {
+    "artifact": "<artifact ID of the transform definition>",
+    "runtime": "<runtime name>",
+    "params": { ... }
+  },
+  "environment": null | {"artifact": "<artifact ID of an environment description>"}
+}
+```
+
+- `inputs`: 1 to 1024 entries, ordered, duplicates permitted. Each entry names an input **record**,
+  not an input artifact; its bytes are that record's `output.artifact`. The derivation's ID
+  therefore commits to the entire lineage beneath it. A cycle of valid records would require a
+  SHA-256 preimage.
+- `transform.runtime`: a name matching `[a-z0-9][a-z0-9._-]{0,63}`, never an argv. What a name
+  means is decided by the verifier's replay policy, not by the record (ASSURANCE.md, Execution
+  safety).
+- `transform.params`: a JSON object under the canonical rules above.
+- `environment`: an explicit `null` (none declared) or an environment description artifact. In v1
+  it is integrity-checked but not enforced (ASSURANCE.md, Reproducibility).
+
+Identical claims have identical bytes and so the same record ID; storing one again is a no-op. Any
+difference, including a different input record for the same input bytes, gives a different
+record. Multiple admissions and derivations of the same artifact coexist.
+
+## Transform interface `4gartha.transform-argv/1`
+
+During replay the verifier materializes verified bytes in a fresh, empty run directory and executes:
+
+```
+<argv for the runtime name, from the verifier's policy> <run>/transform.py \
+  --parents-manifest <run>/parents.json \
+  --parents-dir <run>/parents \
+  --params-path <run>/params.json \
+  --out <run>/out.bin
+```
+
+- `parents.json`: ordered list of `{"index", "record", "artifact", "path"}`, where `path` is relative to
+  `--parents-dir`.
+- `params.json`: canonical encoding of `transform.params`, followed by a newline.
+- Working directory: the run directory. Environment: `PATH`, `LC_ALL=C`, and `HOME`/`TMPDIR` set to
+  the run directory, and nothing else from the verifier. stdin: empty.
+- The derivation is verified iff the process exits 0 within the policy timeout, writes `out.bin`,
+  and `SHA-256(out.bin)` equals `output.artifact`.
+
+The default (`restricted`) policy defines one runtime, `python3`: the verifier's own interpreter in
+isolated mode (`sys.executable -I`). See `transforms/concat_parents.py`.
+
+## Storage rules
+
+- `ledger/objects/**` and `ledger/records/**` are add-only. CI rejects modification, deletion,
+  rename or copy within them (`tools/check_append_only.py`), and every added record path must be
+  `ledger/records/<64 lowercase hex>.json` (`tools/verify_new_records.py`).
+- Records are published via a temp file and a hard link, so a crash never leaves a partial record
+  under a valid ID. On filesystems without hard links this falls back to exclusive create, which is
+  not crash-atomic; a partial file then fails verification rather than passing. An existing entry is never replaced; an entry that is not a valid copy
+  of the record it is named for is reported, not repaired.
+- `ledger/refs/**` holds mutable names for record IDs. Refs are a convenience and carry no assurance.
+- `ledger/nodes/` is the retired v0 manifest location (one manifest per *artifact*, which made a
+  second derivation of the same bytes impossible). v0 was retired before any v0 node was committed.
+  The directory stays empty and protected, and CI rejects additions to it.
+
+## Versioning
+
+A change to identity semantics, canonical encoding or record kinds is a new protocol: new
+`protocol` string, new domain tag, new schema. Records of an earlier protocol are never
+reinterpreted under a later one.

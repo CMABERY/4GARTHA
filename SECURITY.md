@@ -1,21 +1,43 @@
 # Security Policy
 
-## Supported Versions
+## Supported versions
 
-Use this section to tell people about which versions of your project are
-currently being supported with security updates.
+| Version | Supported |
+| ------- | --------- |
+| 0.1.x (`main`) | Yes |
 
-| Version | Supported          |
-| ------- | ------------------ |
-| 5.1.x   | :white_check_mark: |
-| 5.0.x   | :x:                |
-| 4.0.x   | :white_check_mark: |
-| < 4.0   | :x:                |
+There are no releases yet. Fixes land on `main`.
 
-## Reporting a Vulnerability
+## Reporting a vulnerability
 
-Use this section to tell people how to report a vulnerability.
+Report privately through GitHub's private vulnerability reporting:
+<https://github.com/CMABERY/4GARTHA/security/advisories/new>. Please do not open a public pull request
+or discussion for an unfixed vulnerability. Include the commit, a minimal reproduction, and which
+assurance in [ASSURANCE.md](ASSURANCE.md) it breaks.
 
-Tell them where to go, how often they can expect to get an update on a
-reported vulnerability, what to expect if the vulnerability is accepted or
-declined, etc.
+This is a small project maintained on a best-effort basis. No response time is promised.
+
+## What counts as a vulnerability
+
+A report is in scope when the implementation does something [ASSURANCE.md](ASSURANCE.md) says it
+must not. For example:
+
+- the verifier reports PASS (or a profile as satisfied) for an assurance the evidence does not
+  support, or reports PASS for any of the four assurances v1 says can never PASS
+- two different claims share a record ID, or a record's bytes can change without changing its ID
+- a record can make the verifier execute anything other than its policy-defined runtime, or a
+  transform executes when replay was not requested or integrity did not pass
+- a workflow executes transform code, or a CI job obtains write permissions
+- `ledger` commands write outside `ledger/` (for example through ref names) or overwrite stored
+  objects or records
+
+## Known limitations (documented, not vulnerabilities)
+
+- **Replay is not sandboxed.** `ledger replay` and `ledger verify --replay` run transform code as
+  your user, with your filesystem and network access. Do not replay records whose transforms you
+  would not run yourself. The verifier reports `execution_safety: FAIL` whenever it does this
+  (ASSURANCE.md 5.4).
+- **No authenticity or governance assurance.** Admissions are unattested statements, and repository
+  history is protected only by repository settings that are not yet enforced (ASSURANCE.md 5.6, 5.7).
+- Pull-request workflows run the PR's own code (tests and tools) with a read-only token. This is
+  inherent to running CI on pull requests.

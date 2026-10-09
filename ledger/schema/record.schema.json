@@ -1,0 +1,97 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "4GARTHA ledger record (protocol 4gartha.record/1)",
+  "description": "Every field is identity-bearing: the record ID is SHA-256 over a domain tag and the canonical bytes of the whole record. See ASSURANCE.md and SPEC.md.",
+  "type": "object",
+  "required": ["protocol", "kind"],
+  "properties": {
+    "protocol": {"const": "4gartha.record/1"},
+    "kind": {"enum": ["admission", "derivation"]}
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"kind": {"const": "admission"}}, "required": ["kind"]},
+      "then": {"$ref": "#/$defs/admission"}
+    },
+    {
+      "if": {"properties": {"kind": {"const": "derivation"}}, "required": ["kind"]},
+      "then": {"$ref": "#/$defs/derivation"}
+    }
+  ],
+  "$defs": {
+    "digest": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$",
+      "minLength": 64,
+      "maxLength": 64
+    },
+    "artifact_ref": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["artifact"],
+      "properties": {"artifact": {"$ref": "#/$defs/digest"}}
+    },
+    "record_ref": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["record"],
+      "properties": {"record": {"$ref": "#/$defs/digest"}}
+    },
+    "admission": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["protocol", "kind", "output", "basis"],
+      "properties": {
+        "protocol": {"const": "4gartha.record/1"},
+        "kind": {"const": "admission"},
+        "output": {"$ref": "#/$defs/artifact_ref"},
+        "basis": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "statement"],
+          "properties": {
+            "kind": {"const": "unattested"},
+            "statement": {"type": "string", "minLength": 1, "maxLength": 4096}
+          }
+        }
+      }
+    },
+    "derivation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["protocol", "kind", "output", "inputs", "transform", "environment"],
+      "properties": {
+        "protocol": {"const": "4gartha.record/1"},
+        "kind": {"const": "derivation"},
+        "output": {"$ref": "#/$defs/artifact_ref"},
+        "inputs": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 1024,
+          "items": {"$ref": "#/$defs/record_ref"}
+        },
+        "transform": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["artifact", "runtime", "params"],
+          "properties": {
+            "artifact": {"$ref": "#/$defs/digest"},
+            "runtime": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9._-]*$",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "params": {"type": "object"}
+          }
+        },
+        "environment": {
+          "oneOf": [
+            {"type": "null"},
+            {"$ref": "#/$defs/artifact_ref"}
+          ]
+        }
+      }
+    }
+  }
+}

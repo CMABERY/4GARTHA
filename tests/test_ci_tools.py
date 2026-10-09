@@ -1,6 +1,8 @@
-"""Findings 4, 5, 10: CI governance tools.
+"""Findings 4, 5, 10 and the P0 CI posture: CI governance tools.
 
-- replay_new_nodes.py verifies new nodes and reachable ancestors before replay
+- verify_new_records.py verifies new records and their whole lineage, never
+  executes transforms unless explicitly asked (never in CI), and rejects
+  legacy v0 node manifests
 - push events are compared against the pre-push commit (ci_diff_base.py)
 - Git paths are parsed NUL-delimited, so quoted names cannot bypass checks
 """
@@ -13,6 +15,7 @@ from pathlib import Path
 
 import pytest
 
+from ledger import records
 from ledger.cas import sha256_bytes
 
 from ledger_testutil import (
@@ -25,11 +28,9 @@ from ledger_testutil import (
     derive,
     git,
     init_repo,
-    manifest_dict,
     marker_transform,
     put_blob,
     put_blob_at,
-    write_manifest_raw,
 )
 
 pytestmark = pytest.mark.skipif(shutil.which("git") is None, reason="git not available")
@@ -39,11 +40,12 @@ TOOLS = REPO / "tools"
 
 def _git_repo(root: Path) -> Path:
     init_repo(root)
-    for keep in ("nodes", "objects", "refs"):
+    (root / "ledger" / "nodes").mkdir()
+    for keep in ("nodes", "objects", "records", "refs"):
         (root / "ledger" / keep / ".keep").write_text("")
-    # replay_new_nodes.py treats the parent of its own tools/ dir as the repo.
+    # verify_new_records.py treats the parent of its own tools/ dir as the repo.
     (root / "tools").mkdir()
-    for name in ("replay_new_nodes.py", "_gitdiff.py"):
+    for name in ("verify_new_records.py", "_gitdiff.py"):
         shutil.copyfile(TOOLS / name, root / "tools" / name)
     git(root, "init", "-q")
     commit_all(root, "baseline")
@@ -57,78 +59,118 @@ def _run(root: Path, script: Path, *args: str, env=None) -> subprocess.Completed
     )
 
 
-def _replay_tool(root: Path, *args: str) -> subprocess.CompletedProcess:
-    return _run(root, root / "tools" / "replay_new_nodes.py", *args)
+def _record_tool(root: Path, *args: str) -> subprocess.CompletedProcess:
+    return _run(root, root / "tools" / "verify_new_records.py", *args)
 
 
 def _append_only(root: Path, *args: str) -> subprocess.CompletedProcess:
     return _run(root, TOOLS / "check_append_only.py", *args)
 
 
-# --- replay_new_nodes.py (finding 4) ---------------------------------------
+def _ghost_admission(root: Path, artifact: str) -> str:
+    """A valid record whose artifact object was never stored."""
+    rid, _, _ = records.write(root, records.admission(artifact, "object never committed"))
+    return rid
 
 
-def test_replay_tool_rejects_root_manifest_without_object(tmp_path: Path) -> None:
+# --- verify_new_records.py (finding 4, P0) ----------------------------------
+
+
+def test_record_tool_rejects_admission_without_object(tmp_path: Path) -> None:
     root = _git_repo(tmp_path)
-    ghost = "a" * 64
-    write_manifest_raw(root, ghost, manifest_dict(ghost, []))
-    commit_all(root, "root node without object")
+    _ghost_admission(root, "a" * 64)
+    commit_all(root, "admission without object")
 
-    proc = _replay_tool(root, "HEAD~1")
+    proc = _record_tool(root, "HEAD~1")
     assert proc.returncode == 2, proc.stdout
-    assert "missing object" in proc.stderr
-    assert "OK" not in proc.stdout
+    assert "missing from" in proc.stderr
+    assert "NOT SATISFIED" in proc.stderr and "SATISFIED" not in proc.stdout
 
 
-def test_replay_tool_verifies_preexisting_ancestors(tmp_path: Path) -> None:
+def test_record_tool_verifies_preexisting_ancestors(tmp_path: Path) -> None:
     root = _git_repo(tmp_path)
-    ghost = sha256_bytes(b"ghost")
-    write_manifest_raw(root, ghost, manifest_dict(ghost, []))  # slipped in earlier
-    commit_all(root, "old incomplete root")
-    derive(root, b"ghost!", [ghost], concat_transform(), params={"suffix": "!"})
-    commit_all(root, "new derived node")
+    ghost = _ghost_admission(root, sha256_bytes(b"ghost"))  # slipped in earlier
+    commit_all(root, "old incomplete admission")
+    rid, _, _ = records.write(root, records.derivation(
+        put_blob(root, b"ghost!"), [ghost], put_blob(root, concat_transform()), "python3", {"suffix": "!"}))
+    commit_all(root, "new derivation")
 
-    proc = _replay_tool(root, "HEAD~1")
+    proc = _record_tool(root, "HEAD~1")
     assert proc.returncode == 2
-    assert f"{ghost}: missing object" in proc.stderr
+    assert f"record {ghost}: output artifact" in proc.stderr
 
 
-def test_replay_tool_rejects_substituted_transform_without_running_it(tmp_path: Path) -> None:
+@pytest.mark.parametrize("replay", [False, True], ids=["ci", "local-replay"])
+def test_record_tool_rejects_substituted_transform_without_running_it(tmp_path: Path, replay: bool) -> None:
     root = _git_repo(tmp_path)
     marker = tmp_path / "ran"
-    parent = admit(root, b"parent")
-    child = put_blob(root, b"child")
+    a = admit(root, b"parent")
     claimed = sha256_bytes(b"# reviewed transform\n")
     put_blob_at(root, claimed, marker_transform(marker, b"child"))
-    write_manifest_raw(root, child, manifest_dict(child, [parent], digest=claimed, runner=[PYTHON]))
+    records.write(root, records.derivation(put_blob(root, b"child"), [a], claimed, "python3", {}))
     commit_all(root, "derivation with substituted transform")
 
-    proc = _replay_tool(root, "HEAD~1")
+    proc = _record_tool(root, "HEAD~1", *(["--replay"] if replay else []))
     assert proc.returncode == 2
-    assert "transform definition hash mismatch" in proc.stderr
+    assert "transform artifact" in proc.stderr and "does not match its digest" in proc.stderr
     assert not marker.exists()
 
 
-def test_replay_tool_accepts_valid_new_nodes(tmp_path: Path) -> None:
+def test_record_tool_accepts_valid_new_records_without_executing(tmp_path: Path) -> None:
     root = _git_repo(tmp_path)
-    p = admit(root, b"hello")
-    derive(root, b"hello!", [p], concat_transform(), params={"suffix": "!"})
-    commit_all(root, "valid nodes")
+    marker = tmp_path / "ran"
+    a = admit(root, b"hello")
+    derive(root, b"hello!", [a], marker_transform(marker, b"hello!"))
+    commit_all(root, "valid records")
 
-    proc = _replay_tool(root, "HEAD~1")
+    proc = _record_tool(root, "HEAD~1")
     assert proc.returncode == 0, proc.stderr
-    assert proc.stdout.strip() == "replay check: OK (2 new node(s))"
-    assert _replay_tool(root, "HEAD").stdout.strip() == "replay check: no new nodes"
+    first = proc.stdout.splitlines()[0]
+    assert first == "record check: 2 new record(s), 2 in lineage; profile integrity: SATISFIED"
+    assert "no transform code was executed" in proc.stdout
+    assert not marker.exists()
+    assert _record_tool(root, "HEAD").stdout.strip() == "record check: no new records"
 
 
-def test_replay_tool_flags_noncanonical_node_paths(tmp_path: Path) -> None:
+def test_record_tool_local_replay_is_opt_in(tmp_path: Path) -> None:
     root = _git_repo(tmp_path)
-    (root / "ledger" / "nodes" / ("A" * 64 + ".json")).write_text("{}")
-    commit_all(root, "uppercase node name")
+    a = admit(root, b"hello")
+    derive(root, b"hello!", [a], concat_transform(), params={"suffix": "!"})
+    bad = derive(root, b"nope", [a], concat_transform())
+    commit_all(root, "one honest, one false derivation")
 
-    proc = _replay_tool(root, "HEAD~1")
+    assert _record_tool(root, "HEAD~1").returncode == 0  # integrity only
+    proc = _record_tool(root, "HEAD~1", "--replay")
     assert proc.returncode == 2
-    assert "non-canonical node manifest path" in proc.stderr
+    assert "profile replay-if-derived: NOT SATISFIED" in proc.stderr
+    assert bad in proc.stderr
+
+
+@pytest.mark.parametrize(
+    "name",
+    ["A" * 64 + ".json", "a" * 64, "a" * 64 + ".json.tmp", ".%s.json.x.tmp" % ("a" * 64), "sub/" + "a" * 64 + ".json"],
+    ids=["uppercase", "no-suffix", "tmp-suffix", "hidden-temp", "subdir"],
+)
+def test_record_tool_flags_noncanonical_record_paths(tmp_path: Path, name: str) -> None:
+    root = _git_repo(tmp_path)
+    path = root / "ledger" / "records" / name
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("{}")
+    commit_all(root, "odd record path")
+
+    proc = _record_tool(root, "HEAD~1")
+    assert proc.returncode == 2
+    assert "expected ledger/records/<64 lowercase hex>.json" in proc.stderr
+
+
+def test_record_tool_rejects_legacy_v0_node_manifests(tmp_path: Path) -> None:
+    root = _git_repo(tmp_path)
+    (root / "ledger" / "nodes" / ("a" * 64 + ".json")).write_text("{}")
+    commit_all(root, "v0 manifest")
+
+    proc = _record_tool(root, "HEAD~1")
+    assert proc.returncode == 2
+    assert "legacy v0 node manifests are not admissible" in proc.stderr
 
 
 # --- check_append_only.py: NUL-delimited paths (finding 10) -------------------
@@ -157,7 +199,7 @@ def test_append_only_sees_names_git_would_quote(tmp_path: Path, name: str) -> No
 
 def test_append_only_allows_additions_and_unprotected_changes(tmp_path: Path) -> None:
     root = _git_repo(tmp_path)
-    admit(root, b"new node")
+    admit(root, b"new record")
     (root / "README").write_text("docs")
     (root / "ledger" / "refs" / "latest").write_text("x\n")
     git(root, "add", "-A")
@@ -186,16 +228,16 @@ def _resolve(root: Path, event_name: str, payload: dict, tmp_path: Path):
 
 def _gate(root: Path, outputs: dict) -> tuple:
     args = [a for a in outputs["diff_args"].split() if a] + [outputs["base"]]
-    return _append_only(root, *args), _replay_tool(root, *args)
+    return _append_only(root, *args), _record_tool(root, *args)
 
 
 def test_push_compares_against_before_sha_not_origin_main(tmp_path: Path) -> None:
     # Review reproduction: origin/main == HEAD after a push, so the old
     # workflow compared HEAD with itself and passed a protected rewrite.
     root = _git_repo(tmp_path)
-    protected = root / "ledger" / "nodes" / ("a" * 64 + ".json")
+    protected = root / "ledger" / "records" / ("a" * 64 + ".json")
     protected.write_text("original")
-    before = commit_all(root, "baseline node")
+    before = commit_all(root, "baseline record")
     protected.write_text("rewritten")
     commit_all(root, "rewrite protected file")
     commit_all(root, "later commit in the same push")
@@ -210,26 +252,25 @@ def test_push_compares_against_before_sha_not_origin_main(tmp_path: Path) -> Non
     assert "a" * 64 in append_only.stderr
 
 
-def test_push_range_covers_new_nodes_for_replay(tmp_path: Path) -> None:
+def test_push_range_covers_new_records(tmp_path: Path) -> None:
     root = _git_repo(tmp_path)
     before = git(root, "rev-parse", "HEAD")
-    ghost = "b" * 64
-    write_manifest_raw(root, ghost, manifest_dict(ghost, []))
-    commit_all(root, "first pushed commit adds incomplete node")
+    _ghost_admission(root, "b" * 64)
+    commit_all(root, "first pushed commit adds incomplete record")
     (root / "README").write_text("unrelated")
     commit_all(root, "second pushed commit")
 
     proc, outputs = _resolve(root, "push", {"before": before}, tmp_path)
     assert proc.returncode == 0, proc.stderr
-    append_only, replay = _gate(root, outputs)
+    append_only, gate = _gate(root, outputs)
     assert append_only.returncode == 0
-    assert replay.returncode == 2 and "missing object" in replay.stderr
+    assert gate.returncode == 2 and "missing from" in gate.stderr
 
 
-def test_force_push_deleting_a_node_is_detected(tmp_path: Path) -> None:
+def test_force_push_deleting_a_record_is_detected(tmp_path: Path) -> None:
     root = _git_repo(tmp_path)
     node = admit(root, b"will vanish")
-    before = commit_all(root, "node")
+    before = commit_all(root, "record")
     git(root, "reset", "-q", "--hard", "HEAD~1")
     (root / "README").write_text("rewritten history")
     commit_all(root, "rewritten main")
@@ -246,38 +287,36 @@ def test_initial_push_and_manual_runs_audit_everything(tmp_path: Path, event_nam
     root = _git_repo(tmp_path)
     p = admit(root, b"hello")
     derive(root, b"hello!", [p], concat_transform(), params={"suffix": "!"})
-    commit_all(root, "nodes")
+    commit_all(root, "records")
     empty_tree = git(root, "hash-object", "-t", "tree", "/dev/null")
 
     proc, outputs = _resolve(root, event_name, payload, tmp_path)
     assert proc.returncode == 0, proc.stderr
     assert outputs == {"base": empty_tree, "diff_args": "--direct"}
-    append_only, replay = _gate(root, outputs)
+    append_only, gate = _gate(root, outputs)
     assert append_only.returncode == 0, append_only.stderr
-    assert replay.returncode == 0, replay.stderr
-    assert replay.stdout.strip() == "replay check: OK (2 new node(s))"
+    assert gate.returncode == 0, gate.stderr
+    assert gate.stdout.splitlines()[0] == "record check: 2 new record(s), 2 in lineage; profile integrity: SATISFIED"
 
-    ghost = "c" * 64
-    write_manifest_raw(root, ghost, manifest_dict(ghost, []))
-    commit_all(root, "incomplete node")
-    _, replay = _gate(root, outputs)
-    assert replay.returncode == 2
+    _ghost_admission(root, "c" * 64)
+    commit_all(root, "incomplete record")
+    _, gate = _gate(root, outputs)
+    assert gate.returncode == 2
 
 
 def test_pull_request_uses_base_sha_and_merge_base(tmp_path: Path) -> None:
     root = _git_repo(tmp_path)
     base = git(root, "rev-parse", "HEAD")
     git(root, "checkout", "-q", "-b", "feature")
-    ghost = "d" * 64
-    write_manifest_raw(root, ghost, manifest_dict(ghost, []))
-    commit_all(root, "PR adds incomplete node")
+    _ghost_admission(root, "d" * 64)
+    commit_all(root, "PR adds incomplete record")
 
     proc, outputs = _resolve(root, "pull_request", {"pull_request": {"base": {"sha": base}}}, tmp_path)
     assert proc.returncode == 0, proc.stderr
     assert outputs == {"base": base, "diff_args": ""}
-    append_only, replay = _gate(root, outputs)
+    append_only, gate = _gate(root, outputs)
     assert append_only.returncode == 0
-    assert replay.returncode == 2 and "missing object" in replay.stderr
+    assert gate.returncode == 2 and "missing from" in gate.stderr
 
 
 @pytest.mark.parametrize(

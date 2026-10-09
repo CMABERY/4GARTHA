@@ -1,21 +1,26 @@
 # Transforms
 
-Transforms are domain logic. The ledger only cares about one thing:
+Transforms are domain logic. A derivation record claims that a transform, run over its ordered input
+records' artifacts with the given params, produced the output artifact. Replay checks that claim on the
+verifying host. It does **not** establish that the transform does what its author says: a
+transform that ignores its inputs and writes constant bytes replays perfectly. Reviewing transform
+code is a human process (see [ASSURANCE.md](../ASSURANCE.md), Derivation verification).
 
-> given ordered parents and semantic params, the transform deterministically produces the child bytes.
+Replay executes transform code **without an isolation boundary** (ASSURANCE.md, Execution safety).
+Never replay records you would not run as your own user. CI never replays.
 
-## Replay contract (v0)
+## Interface `4gartha.transform-argv/1`
 
-If you want **derivation replay** (`ledger replay ...`) to be possible, provide transform definitions
-as blobs in the CAS (via `ledger ingest ... --transform-file path/to/transform.py`) and implement the
-CLI contract:
+Record a derivation with `ledger derive out.bin --input <record ID> --transform-file path/to/transform.py`
+(the transform is stored in the CAS by digest) and implement:
 
 ```
-<runner...> <transform_script> \
-  --parents-manifest <workdir>/parents.json \
-  --parents-dir <workdir>/parents \
-  --params-path <workdir>/params.json \
-  --out <workdir>/out.bin
+<runtime argv> transform.py \
+  --parents-manifest <run>/parents.json \
+  --parents-dir <run>/parents \
+  --params-path <run>/params.json \
+  --out <run>/out.bin
 ```
 
-See `concat_parents.py` for an example.
+The record names a runtime (default `python3`), not a command. The verifier's policy decides what the name
+runs. Full contract: [SPEC.md](../SPEC.md). Example: `concat_parents.py`.

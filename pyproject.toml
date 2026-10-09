@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "epistemic-ledger"
 version = "0.1.0"
-description = "Immutable, content-addressed DAG ledger + Sprint-1 verifier fencepost."
+description = "Content-addressed evidence and provenance ledger with explicitly scoped, testable assurance claims (see ASSURANCE.md) + Sprint-1 verifier fencepost."
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
@@ -21,8 +21,8 @@ dev = [
 ledger = "ledger.cli:main"
 
 [tool.setuptools.package-data]
-# Node manifest schema used by ledger.verify / ledger.replay (copy of ledger/schema/node.schema.json).
-ledger = ["node.schema.json"]
+# Record schema used by ledger.records (identical copy of ledger/schema/record.schema.json).
+ledger = ["record.schema.json"]
 
 [tool.pytest.ini_options]
 # Non-overlapping roots: overlapping entries (e.g. "tests" and ".") make pytest

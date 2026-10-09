@@ -6,7 +6,8 @@ import sys
 
 from _gitdiff import diff_name_status
 
-PROTECTED_PREFIXES = ("ledger/objects/", "ledger/nodes/")
+# ledger/nodes/ is the retired v0 location; kept protected so it stays empty.
+PROTECTED_PREFIXES = ("ledger/objects/", "ledger/records/", "ledger/nodes/")
 
 
 def _touches_protected(paths: list[str]) -> bool:
@@ -19,12 +20,12 @@ def main() -> int:
     #
     # Allowed:
     #   A  ledger/objects/...
-    #   A  ledger/nodes/...
+    #   A  ledger/records/...
     # Anything else within those prefixes => fail.
     #
     # Paths come from `git diff --name-status -z`, so names containing tabs,
     # newlines or quotes are compared verbatim (never as Git's quoted form).
-    ap = argparse.ArgumentParser(description="Enforce add-only invariant for ledger/nodes and ledger/objects")
+    ap = argparse.ArgumentParser(description="Enforce add-only invariant for ledger/objects, ledger/records and ledger/nodes")
     ap.add_argument(
         "base_ref",
         nargs="?",
@@ -66,7 +67,7 @@ def main() -> int:
                 bad.append((status, paths))
 
     if bad:
-        print("append-only invariant violated (nodes/objects must be add-only):", file=sys.stderr)
+        print("append-only invariant violated (objects/records must be add-only):", file=sys.stderr)
         for status, paths in bad:
             if len(paths) == 1:
                 print(f"  {status}\t{paths[0]!r}", file=sys.stderr)
