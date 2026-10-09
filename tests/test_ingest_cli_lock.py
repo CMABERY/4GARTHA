@@ -1,5 +1,6 @@
-"""Finding 1: `ledger ingest` must run its whole transaction under the
-repo-wide session lock (tested through the CLI, not just the lock helper)."""
+"""Finding 1: `ledger admit` / `ledger derive` run their whole transaction
+under the repo-wide session lock (tested through the CLI, not just the lock
+helper). Also: input validation happens before anything is written."""
 from __future__ import annotations
 
 import subprocess
@@ -8,17 +9,17 @@ from pathlib import Path
 
 import pytest
 
-from ledger.cas import CasPaths, sha256_bytes, sha256_file
+from ledger import records
+from ledger.assurance import PROFILES, evaluate
+from ledger.cas import CasPaths, sha256_bytes
 from ledger.locks import ingest_session_lock
-from ledger.manifest import node_manifest_path
-from ledger.verify import verify_reachable
 
-from ledger_testutil import PYTHON, REPO, admit, cli_env, init_repo, run_cli
+from ledger_testutil import PYTHON, admit, check, cli_env, concat_transform, derive, init_repo, run_cli
 
 
-def _start_ingest(root: Path, *args: str, env=None) -> subprocess.Popen:
+def _start(root: Path, *args: str, env=None) -> subprocess.Popen:
     return subprocess.Popen(
-        [PYTHON, "-m", "ledger.cli", "ingest", *args],
+        [PYTHON, "-m", "ledger.cli", *args],
         cwd=root,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
@@ -27,28 +28,32 @@ def _start_ingest(root: Path, *args: str, env=None) -> subprocess.Popen:
     )
 
 
-def test_cli_ingest_blocks_while_session_lock_is_held(tmp_path: Path) -> None:
+def _empty(root: Path) -> bool:
+    return (list((root / "ledger" / "objects").iterdir()) == []
+            and list((root / "ledger" / "records").iterdir()) == [])
+
+
+def test_cli_admit_blocks_while_session_lock_is_held(tmp_path: Path) -> None:
     root = init_repo(tmp_path)
     (root / "control").write_bytes(b"control")
     (root / "input").write_bytes(b"lock-test")
-    expected = sha256_bytes(b"lock-test")
+    expected = records.record_id(records.admission(sha256_bytes(b"lock-test"), "s"))
 
     proc = None
     with ingest_session_lock(root):
         # Positive control: same command shape, lock disabled. Its runtime
-        # calibrates how long an unblocked ingest takes on this machine.
+        # calibrates how long an unblocked admit takes on this machine.
         t0 = time.monotonic()
-        control = run_cli(root, "ingest", "--no-session-lock", "control")
-        control_elapsed = time.monotonic() - t0
+        control = run_cli(root, "admit", "--no-session-lock", "control", "--statement", "s")
+        window = max(1.0, 3 * (time.monotonic() - t0))
         assert control.returncode == 0, control.stderr
-        window = max(1.0, 3 * control_elapsed)
 
         try:
-            proc = _start_ingest(root, "input")
+            proc = _start(root, "admit", "input", "--statement", "s")
             time.sleep(window)
-            assert proc.poll() is None, "ingest finished while another session held the lock"
-            assert not node_manifest_path(root, expected).exists()
-            assert not CasPaths.from_repo_root(root).object_path(expected).exists()
+            assert proc.poll() is None, "admit finished while another session held the lock"
+            assert not records.record_path(root, expected).exists()
+            assert not CasPaths.from_repo_root(root).object_path(sha256_bytes(b"lock-test")).exists()
         except BaseException:
             if proc is not None:
                 proc.kill()
@@ -58,7 +63,7 @@ def test_cli_ingest_blocks_while_session_lock_is_held(tmp_path: Path) -> None:
     out, err = proc.communicate(timeout=60)
     assert proc.returncode == 0, err
     assert out.strip() == expected
-    assert verify_reachable(root, expected).ok
+    assert evaluate(check(root, expected), PROFILES["integrity"]).satisfied
 
 
 @pytest.mark.parametrize("value", ["0", "false", "off"])
@@ -66,73 +71,123 @@ def test_env_var_can_disable_session_lock(tmp_path: Path, value: str) -> None:
     root = init_repo(tmp_path)
     (root / "input").write_bytes(b"env-disabled")
     with ingest_session_lock(root):
-        proc = run_cli(root, "ingest", "input", env=cli_env({"LEDGER_INGEST_SESSION_LOCK": value}), timeout=30)
+        proc = run_cli(root, "admit", "input", "--statement", "s",
+                       env=cli_env({"LEDGER_INGEST_SESSION_LOCK": value}), timeout=30)
     assert proc.returncode == 0, proc.stderr
 
 
-def test_concurrent_cli_ingests_all_succeed_and_verify(tmp_path: Path) -> None:
+def test_concurrent_cli_derives_all_succeed_and_replay(tmp_path: Path) -> None:
     root = init_repo(tmp_path)
     tf = root / "concat.py"
-    tf.write_bytes((REPO / "transforms" / "concat_parents.py").read_bytes())
-    parent = admit(root, b"base")
-    inputs = []
+    tf.write_bytes(concat_transform())
+    a = admit(root, b"base")
+    outs = []
     for i in range(6):
-        p = root / f"in{i}"
+        p = root / f"out{i}"
         p.write_bytes(b"base" + str(i).encode())
-        inputs.append(p)
+        outs.append(p)
 
     procs = [
-        _start_ingest(
-            root, p.name, "--parent", parent, "--transform-file", str(tf),
-            "--params-json", '{"suffix": "%d"}' % i, "--runner", PYTHON,
-        )
-        for i, p in enumerate(inputs)
+        _start(root, "derive", p.name, "--input", a, "--transform-file", str(tf), "--params-json", '{"suffix": "%d"}' % i)
+        for i, p in enumerate(outs)
     ]
     results = [pr.communicate(timeout=60) for pr in procs]
     for pr, (_, err) in zip(procs, results):
         assert pr.returncode == 0, err
-
     ids = [out.strip() for out, _ in results]
-    assert ids == [sha256_file(p) for p in inputs]
-    for nid in ids:
-        assert verify_reachable(root, nid, replay=True).ok
-    leftovers = [p for p in (root / "ledger" / "objects").rglob("*") if p.name.endswith(".tmp")]
+    assert len(set(ids)) == 6
+    for rid in ids:
+        assert evaluate(check(root, rid, replay=True), PROFILES["replay"]).satisfied
+    leftovers = [p for p in (root / "ledger").rglob("*") if p.name.endswith(".tmp")]
     assert leftovers == []
-
-
-def test_ingest_rejects_self_parent_without_writing(tmp_path: Path) -> None:
-    root = init_repo(tmp_path)
-    (root / "input").write_bytes(b"self")
-    self_id = sha256_bytes(b"self")
-
-    proc = run_cli(root, "ingest", "input", "--parent", self_id)
-    assert proc.returncode != 0
-    assert "own parent" in proc.stderr
-    assert "Traceback" not in proc.stderr
-    assert not node_manifest_path(root, self_id).exists()
-    assert not CasPaths.from_repo_root(root).object_path(self_id).exists()
 
 
 @pytest.mark.parametrize(
     "args",
-    [["--parent", "ABC"], ["--env-digest", "nope"], ["--params-json", "[1]"], ["--params-json", "{bad"]],
+    [
+        ["--input", "ABC"],
+        ["--input", "7" * 64],                 # well-formed but no such record
+        ["--params-json", "[1]"],
+        ["--params-json", "{bad"],
+        ["--params-json", '{"a": 1.5}'],       # floats have no canonical form
+        ["--params-json", '{"a": 1, "a": 2}'], # duplicate keys
+        ["--runtime", "sh -c id"],
+        [],                                     # no --input at all
+    ],
+    ids=["bad-id", "missing-record", "params-list", "params-bad-json", "float", "dup-key", "argv-runtime", "no-input"],
 )
-def test_ingest_rejects_invalid_input_without_writing(tmp_path: Path, args) -> None:
+def test_derive_rejects_invalid_input_without_writing(tmp_path: Path, args) -> None:
     root = init_repo(tmp_path)
-    (root / "input").write_bytes(b"data")
-
-    proc = run_cli(root, "ingest", "input", *args)
+    (root / "out").write_bytes(b"data")
+    (root / "t.py").write_bytes(b"pass\n")
+    proc = run_cli(root, "derive", "out", "--transform-file", "t.py", *args)
     assert proc.returncode != 0
     assert "Traceback" not in proc.stderr
-    assert list((root / "ledger" / "objects").iterdir()) == []
-    assert list((root / "ledger" / "nodes").iterdir()) == []
+    assert _empty(root)
 
 
-def test_reingest_fails_cleanly(tmp_path: Path) -> None:
+@pytest.mark.parametrize("statement", ["", "é"], ids=["empty", "non-nfc"])
+def test_admit_rejects_invalid_statement_without_writing(tmp_path: Path, statement: str) -> None:
     root = init_repo(tmp_path)
     (root / "input").write_bytes(b"data")
-    assert run_cli(root, "ingest", "input").returncode == 0
-    again = run_cli(root, "ingest", "input")
+    proc = run_cli(root, "admit", "input", "--statement", statement)
+    assert proc.returncode != 0 and "Traceback" not in proc.stderr
+    assert _empty(root)
+
+
+def test_readmitting_the_same_claim_is_idempotent(tmp_path: Path) -> None:
+    root = init_repo(tmp_path)
+    (root / "input").write_bytes(b"data")
+    first = run_cli(root, "admit", "input", "--statement", "s")
+    again = run_cli(root, "admit", "input", "--statement", "s")
+    other = run_cli(root, "admit", "input", "--statement", "a different claim")
+    assert first.returncode == again.returncode == other.returncode == 0
+    assert first.stdout == again.stdout != other.stdout
+    assert "already present" in again.stderr
+    assert len(list((root / "ledger" / "records").iterdir())) == 2
+
+
+@pytest.mark.parametrize("problem", ["missing-artifact", "corrupt-artifact", "corrupt-record", "broken-lineage"])
+def test_derive_requires_inputs_to_pass_integrity(tmp_path: Path, problem: str) -> None:
+    root = init_repo(tmp_path)
+    a = admit(root, b"hello")
+    target = a
+    obj = CasPaths.from_repo_root(root).object_path(sha256_bytes(b"hello"))
+    if problem == "missing-artifact":
+        obj.unlink()
+    elif problem == "corrupt-artifact":
+        obj.write_bytes(b"HELLO")
+    elif problem == "corrupt-record":
+        records.record_path(root, a).write_bytes(b"{}")
+    else:  # input record fine, but an ancestor beneath it is missing
+        mid = derive(root, b"hello", [a], concat_transform())
+        records.record_path(root, a).unlink()
+        target = mid
+    def stored() -> list:
+        return sorted(str(p.relative_to(root)) for d in ("objects", "records")
+                      for p in (root / "ledger" / d).rglob("*"))
+
+    before = stored()
+    (root / "out").write_bytes(b"hello!")
+    (root / "t.py").write_bytes(concat_transform())
+
+    proc = run_cli(root, "derive", "out", "--input", target, "--transform-file", "t.py",
+                   "--params-json", '{"suffix": "!"}')
+    assert proc.returncode != 0
+    assert "do not satisfy the integrity profile" in proc.stderr
+    assert "Traceback" not in proc.stderr
+    assert stored() == before  # no output, transform or record written
+
+
+def test_readmit_over_corrupt_existing_record_is_refused(tmp_path: Path) -> None:
+    root = init_repo(tmp_path)
+    (root / "input").write_bytes(b"data")
+    first = run_cli(root, "admit", "input", "--statement", "s")
+    assert first.returncode == 0
+    path = records.record_path(root, first.stdout.strip())
+    path.write_bytes(b'{"tampered":true}')
+
+    again = run_cli(root, "admit", "input", "--statement", "s")
     assert again.returncode != 0
-    assert "already exists" in again.stderr
-    assert "Traceback" not in again.stderr
+    assert "is not valid" in again.stderr and "Traceback" not in again.stderr
+    assert path.read_bytes() == b'{"tampered":true}'  # never repaired silently

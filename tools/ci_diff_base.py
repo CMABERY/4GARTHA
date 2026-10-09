@@ -2,7 +2,7 @@
 
 Reads the GitHub Actions event (GITHUB_EVENT_NAME, GITHUB_EVENT_PATH) and
 emits ``base=<sha>`` and ``diff_args=<flags>`` for check_append_only.py and
-replay_new_nodes.py (to stdout, and to $GITHUB_OUTPUT when set):
+verify_new_records.py (to stdout, and to $GITHUB_OUTPUT when set):
 
   pull_request       base = pull_request.base.sha; range base...HEAD
                      (the PR's own changes, measured from the merge-base)

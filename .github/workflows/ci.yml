@@ -6,6 +6,14 @@ on:
     branches: [ main ]
   workflow_dispatch:
 
+# Least privilege for every job. The admission gate below does not replay
+# submitted records, but CI still runs contributor-controlled code on pull
+# requests (pip install of the PR's package, its tests and tools; the tests
+# deliberately replay fixture transforms), so the token must not be able to
+# write to the repository. ASSURANCE.md section 7.
+permissions:
+  contents: read
+
 jobs:
   ledger:
     name: Ledger Integrity
@@ -28,32 +36,85 @@ jobs:
       - name: Unit tests
         run: pytest -q
 
+      - name: Independent record-ID check (jq + sha256sum, no Python)
+        # Second implementation path for the committed record-ID fixtures
+        # (conformance/record-v1-vectors.json): re-serializes each record with
+        # jq, then recomputes the domain-separated record ID and plain SHA-256.
+        # Complements, does not replace, the Python C9 conformance tests.
+        run: bash ci/verify_record_ids.sh
+
       - name: Resolve ledger diff base
         # Immutable, event-appropriate base (see tools/ci_diff_base.py):
         #   pull_request      -> pull_request.base.sha, range base...HEAD
         #   push              -> event.before compared directly with HEAD (whole pushed range)
         #   initial push      -> empty tree (every file counts as added)
-        #   workflow_dispatch -> empty tree (full audit of every node)
+        #   workflow_dispatch -> empty tree (full audit of every record)
         # Unknown events and unavailable bases fail the job.
         id: diffbase
         run: python tools/ci_diff_base.py
 
-      - name: Enforce append-only nodes/objects
+      - name: Enforce append-only objects/records
         env:
           LEDGER_DIFF_BASE: ${{ steps.diffbase.outputs.base }}
           LEDGER_DIFF_ARGS: ${{ steps.diffbase.outputs.diff_args }}
         run: |
           python tools/check_append_only.py $LEDGER_DIFF_ARGS "$LEDGER_DIFF_BASE"
 
-      - name: Verify and replay newly added nodes (strong verification)
-        # Verifies each new node and all reachable ancestors before replaying.
-        # WARNING: this executes transform code.
-        # Use only if your threat model permits executing transforms in CI.
+      - name: Verify newly added records (integrity profile; submitted records are not replayed)
+        # Checks every new record and its whole lineage: canonical bytes, schema,
+        # record-ID binding, input records present, artifacts present and
+        # matching their digests. Rejects legacy v0 ledger/nodes/ manifests.
+        # The admission gate does not replay submitted records until replay
+        # runs inside an enforced isolation boundary; derivation_verification
+        # is reported NOT_CHECKED. Do not add --replay here
+        # (tests/test_conformance.py, C7).
         env:
           LEDGER_DIFF_BASE: ${{ steps.diffbase.outputs.base }}
           LEDGER_DIFF_ARGS: ${{ steps.diffbase.outputs.diff_args }}
         run: |
-          python tools/replay_new_nodes.py $LEDGER_DIFF_ARGS "$LEDGER_DIFF_BASE"
+          python tools/verify_new_records.py $LEDGER_DIFF_ARGS "$LEDGER_DIFF_BASE"
+
+  wheel:
+    name: Built-wheel tests
+    # The suite again, against the built and installed wheel rather than an
+    # editable checkout: proves the packaged verifier (and its packaged record
+    # schema) is what passes, and that no removed v0 module ships.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Build wheel
+        run: |
+          python -m pip install --upgrade pip
+          pip wheel --no-deps -w dist .
+
+      - name: Install wheel into a clean environment
+        run: |
+          python -m venv "$RUNNER_TEMP/wheelenv"
+          "$RUNNER_TEMP/wheelenv/bin/pip" install -r requirements.lock
+          "$RUNNER_TEMP/wheelenv/bin/pip" install --no-deps dist/*.whl
+
+      - name: Check wheel contents
+        run: |
+          "$RUNNER_TEMP/wheelenv/bin/python" - dist/*.whl <<'PY'
+          import sys, zipfile
+          names = set(zipfile.ZipFile(sys.argv[1]).namelist())
+          assert "ledger/record.schema.json" in names, sorted(names)
+          for gone in ("ledger/manifest.py", "ledger/verify.py", "ledger/replay.py", "ledger/node.schema.json"):
+              assert gone not in names, gone
+          print("wheel contents OK:", len(names), "entries")
+          PY
+
+      - name: Unit tests against the installed wheel
+        run: |
+          "$RUNNER_TEMP/wheelenv/bin/python" -c "import ledger, sys; print(ledger.__version__, ledger.__file__); sys.exit('site-packages' not in ledger.__file__)"
+          "$RUNNER_TEMP/wheelenv/bin/python" -m pytest -q
 
   sprint1:
     name: Sprint-1 Frozen Gate

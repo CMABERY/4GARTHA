@@ -69,6 +69,47 @@ def verify_existing_object(cas: CasPaths, digest: str) -> bool:
     return True
 
 
+def publish_no_clobber(tmp: Path, dst: Path) -> bool:
+    """Atomically publish fully written ``tmp`` at ``dst`` without ever
+    replacing an existing ``dst``. Returns True if published, False if
+    ``dst`` already existed (the caller must then verify what is there).
+    ``tmp`` is always removed.
+
+    Hard link first: atomic and no-clobber, so a concurrent writer that
+    creates ``dst`` at any moment is never overwritten and no partial file is
+    ever visible under ``dst``. Where hard links are unavailable: on Windows,
+    ``os.rename`` is likewise atomic and fails if ``dst`` exists; elsewhere,
+    exclusive create plus copy (no-clobber, but not crash-atomic: a crash can
+    leave a partial file, which then fails verification and is never
+    silently replaced).
+    """
+    try:
+        try:
+            os.link(tmp, dst)
+            return True
+        except FileExistsError:
+            return False
+        except OSError:
+            pass  # no hard links on this filesystem
+        if os.name == "nt":
+            try:
+                os.rename(tmp, dst)
+                return True
+            except FileExistsError:
+                return False
+        data = tmp.read_bytes()
+        try:
+            with dst.open("xb") as f:
+                f.write(data)
+                f.flush()
+                os.fsync(f.fileno())
+            return True
+        except FileExistsError:
+            return False
+    finally:
+        tmp.unlink(missing_ok=True)
+
+
 def store_blob(src: Path, cas: CasPaths, digest: str) -> Path:
     dst = cas.object_path(digest)
     dst.parent.mkdir(parents=True, exist_ok=True)
@@ -85,15 +126,22 @@ def store_blob(src: Path, cas: CasPaths, digest: str) -> Path:
     if actual != digest:
         raise ValueError(f"refusing to store {src}: expected sha256 {digest}, got {actual}")
 
-    # Unique temp file in the destination directory -> atomic rename, so
-    # concurrent writers never share (or clobber) a temp path.
+    # Unique temp file in the destination directory, fully written and synced,
+    # then published without clobbering: another writer may have created the
+    # object since the check above (e.g. with --no-session-lock or a writer
+    # that does not take the lock).
     fd, tmp_name = tempfile.mkstemp(prefix=f".{digest}.", suffix=".tmp", dir=dst.parent)
     tmp = Path(tmp_name)
     try:
         with os.fdopen(fd, "wb") as f:
             f.write(data)
-        os.replace(tmp, dst)
+            f.flush()
+            os.fsync(f.fileno())
     except BaseException:
         tmp.unlink(missing_ok=True)
         raise
+    if not publish_no_clobber(tmp, dst):
+        # Lost the race: reuse the existing entry only if it is intact.
+        if not verify_existing_object(cas, digest):
+            raise CasIntegrityError(f"CAS entry vanished during publication: {dst}")
     return dst

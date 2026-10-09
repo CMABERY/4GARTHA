@@ -6,18 +6,19 @@ import os
 import subprocess
 import sys
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional
+from typing import Any, Dict, List, Optional
 
+from ledger import records
+from ledger.assurance import Dimension, Report, Status
 from ledger.cas import CasPaths, sha256_bytes
-from ledger.manifest import Node, Transform, node_manifest_path, write_node_manifest
+from ledger.verifier import verify
 
 REPO = Path(__file__).resolve().parents[1]
 PYTHON = sys.executable
-ADMIT_DIGEST = sha256_bytes(b"admit")
 
 
 def init_repo(root: Path) -> Path:
-    for name in ("nodes", "objects", "refs"):
+    for name in ("objects", "records", "refs"):
         (root / "ledger" / name).mkdir(parents=True, exist_ok=True)
     return root
 
@@ -37,42 +38,54 @@ def put_blob_at(root: Path, digest: str, data: bytes) -> Path:
     return path
 
 
-def write_manifest_raw(root: Path, node_id: str, obj: Any) -> Path:
-    """Write a manifest without validation, to exercise verifier/replay rejection."""
-    path = node_manifest_path(root, node_id)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(obj if isinstance(obj, str) else json.dumps(obj), encoding="utf-8")
-    return path
-
-
-def manifest_dict(node_id: str, parents: Iterable[str], digest: str = ADMIT_DIGEST, **transform: Any) -> Dict[str, Any]:
-    t: Dict[str, Any] = {"name": "t", "digest": digest, "params": {}}
-    t.update(transform)
-    return {"id": node_id, "parents": list(parents), "transform": t}
-
-
-def admit(root: Path, data: bytes) -> str:
-    """Valid root/admission node (object + manifest)."""
-    node_id = put_blob(root, data)
-    write_node_manifest(root, Node(node_id, [], Transform("admit", ADMIT_DIGEST, {})))
-    return node_id
+def admit(root: Path, data: bytes, statement: str = "test admission") -> str:
+    """Valid admission record (object + record). Returns the record ID."""
+    rid, _, _ = records.write(root, records.admission(put_blob(root, data), statement))
+    return rid
 
 
 def derive(
     root: Path,
     data: bytes,
-    parents: List[str],
+    inputs: List[str],
     transform_code: bytes,
     params: Optional[Dict[str, Any]] = None,
+    runtime: str = "python3",
+    environment: Optional[bytes] = None,
 ) -> str:
-    """Valid derived node whose transform is stored in the CAS."""
-    node_id = put_blob(root, data)
-    t_digest = put_blob(root, transform_code)
-    write_node_manifest(
-        root,
-        Node(node_id, list(parents), Transform("t", t_digest, params or {}, runner=[PYTHON])),
-    )
-    return node_id
+    """Valid derivation record whose transform (and environment) are in the CAS."""
+    env = put_blob(root, environment) if environment is not None else None
+    rec = records.derivation(put_blob(root, data), list(inputs), put_blob(root, transform_code),
+                             runtime, params or {}, env)
+    rid, _, _ = records.write(root, rec)
+    return rid
+
+
+def write_record_raw(root: Path, rid: str, content: Any) -> Path:
+    """Store anything under ledger/records/<rid>.json, bypassing validation."""
+    path = records.record_path(root, rid)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    if isinstance(content, bytes):
+        path.write_bytes(content)
+    elif isinstance(content, str):
+        path.write_text(content, encoding="utf-8")
+    else:
+        path.write_bytes(json.dumps(content, sort_keys=True, separators=(",", ":")).encode())
+    return path
+
+
+def record_of(root: Path, rid: str) -> Dict[str, Any]:
+    loaded = records.load(root, rid)
+    assert loaded.record is not None, loaded.errors
+    return loaded.record
+
+
+def status(report: Report, dim: Dimension) -> Status:
+    return report.outcomes[dim].status
+
+
+def check(root: Path, rid: str, **kw: Any) -> Report:
+    return verify(root, [rid], **kw)
 
 
 def concat_transform() -> bytes:
@@ -90,7 +103,7 @@ def marker_transform(marker: Path, output: bytes) -> bytes:
 
 
 def identity_marker_transform(marker: Path) -> bytes:
-    """Transform that records that it ran, then copies its first parent."""
+    """Transform that records that it ran, then copies its first input."""
     return (
         "import json, sys\n"
         "from pathlib import Path\n"
