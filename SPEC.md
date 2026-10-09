@@ -14,8 +14,13 @@ the tests win ([LAW-0001](LAW-0001_Names_NonNormative_Tests_Normative.md)) and t
 An artifact ID names bytes. A record ID names a *claim about* artifacts. The two are never
 interchangeable: every reference in a record is typed by its field name (`artifact` or `record`).
 
-The domain tag means a record ID never equals the plain SHA-256 of its stored file, and a future
-protocol (with its own tag) cannot produce IDs that collide with v1 IDs by construction.
+The domain tag gives record IDs their own namespace. A record ID is SHA-256 over a different preimage
+than the plain SHA-256 of its stored file (which is what that file's artifact ID would be), and a
+future protocol hashes under a different tag. Domain-separated preimages establish distinct identity
+namespaces. Equality between independently generated identifiers from different namespaces remains
+computationally infeasible under the assumed security of SHA-256, but is not mathematically
+impossible. The same holds for every statement in this document that two identifiers differ: it
+rests on SHA-256's collision and preimage resistance (ASSURANCE.md section 4), not on construction.
 
 A record file contains exactly the record's canonical bytes: no trailing newline, no other content.
 
@@ -105,8 +110,9 @@ any signature-like field, is rejected by the schema, so no v1 record can appear 
   it is integrity-checked but not enforced (ASSURANCE.md, Reproducibility).
 
 Identical claims have identical bytes and so the same record ID; storing one again is a no-op. Any
-difference, including a different input record for the same input bytes, gives a different
-record. Multiple admissions and derivations of the same artifact coexist.
+difference, including a different input record for the same input bytes, gives different bytes and
+therefore, under SHA-256 collision resistance, a different record ID. Multiple admissions and
+derivations of the same artifact coexist.
 
 ## Transform interface `4gartha.transform-argv/1`
 

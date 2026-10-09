@@ -117,7 +117,10 @@ Replaying a root is the canonical case. `ledger replay <admission>` reports
 
 Assumed for every claim:
 
-- SHA-256 is collision- and second-preimage-resistant.
+- SHA-256 is preimage-, second-preimage- and collision-resistant. Every statement in this document
+  that two identifiers differ, that a change alters an ID, or that a structure (such as a cycle)
+  cannot be built means *computationally infeasible under this assumption*, never mathematically
+  impossible. If the assumption fails, these claims fail with it.
 - The verifier's own code, its Python runtime and the host it runs on form the trusted base. A
   report from a modified verifier, or from a host controlled by A5, establishes nothing.
 - No claim in v1 holds against A4 or A5. That is the governance gap in section 5.7, stated rather
@@ -157,9 +160,10 @@ current state and the requirements for a later version follow where they apply.
 
   Inputs are named by record ID, so the target's ID commits to the whole lineage. Changing any
   field anywhere in it changes the target's ID (C4).
-- **Adversary.** A2, A3. A forger cannot alter a committed record without changing its ID. Nor can
-  they feasibly construct a cycle: that would require a SHA-256 preimage. It is not logically
-  impossible, so the verifier still checks for cycles.
+- **Adversary.** A2, A3. A forger cannot feasibly alter a committed record without changing its ID:
+  that would require a SHA-256 second preimage. Nor can they feasibly construct a cycle, which would
+  require a SHA-256 preimage. Neither is mathematically impossible, so the verifier still checks for
+  cycles.
 - **Evidence.** Record files.
 - **Procedure.** For every record reachable from the target:
   1. Decode strictly.
@@ -319,8 +323,10 @@ Settled before any ledger record was committed, so no migration exists or is nee
 byte-level definition is in [SPEC.md](SPEC.md).
 
 1. **Artifact identity is separate from record identity.** An artifact ID hashes bytes. A record ID
-   hashes a claim, under a domain tag. Any number of claims can reference identical bytes, each
-   under its own record ID (C3).
+   hashes a claim, under a domain tag. Domain-separated preimages establish distinct identity
+   namespaces. Equality across them is computationally infeasible under SHA-256's assumed security,
+   not mathematically impossible. Any number of claims can reference identical bytes, each under
+   its own record ID (C3).
 2. **Derivations name input records, not input artifacts,** so a record ID commits to its entire
    lineage. Cycles are computationally infeasible under SHA-256 preimage resistance, though not
    logically impossible. The verifier still detects any cycle and reports it as FAIL.
@@ -347,9 +353,10 @@ byte-level definition is in [SPEC.md](SPEC.md).
 `node_id = SHA-256(canon_json_bytes(node_record))`. It was evaluated as a starting point and **not
 adopted as the ledger identity**:
 
-- **No domain separation.** The ID is the plain SHA-256 of the record's bytes. It therefore equals
-  the artifact ID those same bytes would get as an artifact, so record and artifact namespaces
-  collide.
+- **No domain separation.** The ID is the plain SHA-256 of the record's bytes, so it is, by
+  definition, the artifact ID those same bytes would get as an artifact. Record and artifact IDs
+  share one namespace. (v1's domain tag separates them. Equality then becomes computationally
+  infeasible rather than definitional, though not mathematically impossible.)
 - **Versioning in the body only.** `"v": 1` and `node_type` are inside the record, which is good,
   but there is no protocol tag in the hash preimage.
 - **Canonicalization without policy.** `canon_json_bytes` has no rule for floats, NFC or non-ASCII

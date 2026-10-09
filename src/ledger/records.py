@@ -41,9 +41,11 @@ from typing import Any, Dict, Iterator, List, Optional, Tuple
 from . import canonical
 
 PROTOCOL = "4gartha.record/1"
-# Preimage prefix: protocol identifier and a NUL. A record ID therefore never
-# equals the plain SHA-256 of its own stored file, and IDs from a future
-# protocol (different tag) cannot collide with v1 IDs by construction.
+# Preimage prefix: protocol identifier and a NUL. Record IDs are hashed over
+# different preimages than artifact IDs (plain SHA-256 of bytes) and than IDs
+# of any future protocol (different tag): distinct namespaces. Equality across
+# namespaces is computationally infeasible under SHA-256's assumed security,
+# not mathematically impossible (SPEC.md, "Two identities").
 DOMAIN_TAG = PROTOCOL.encode("ascii") + b"\x00"
 MAX_RECORD_BYTES = 1024 * 1024
 

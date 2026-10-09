@@ -25,7 +25,9 @@ must not. For example:
 
 - the verifier reports PASS (or a profile as satisfied) for an assurance the evidence does not
   support, or reports PASS for any of the four assurances v1 says can never PASS
-- two different claims share a record ID, or a record's bytes can change without changing its ID
+- two different claims share a record ID, or a record's bytes can change without changing its ID,
+  through an implementation defect (a demonstrated SHA-256 collision or preimage would break the
+  stated assumption rather than this implementation; please report that too)
 - a record can make the verifier execute anything other than its policy-defined runtime, or a
   transform executes when replay was not requested or integrity did not pass
 - a workflow invokes ledger derivation replay, or a CI job obtains write permissions
