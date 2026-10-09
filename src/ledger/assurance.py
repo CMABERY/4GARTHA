@@ -1,4 +1,4 @@
-"""Typed assurance results (ASSURANCE.md, contract version 1).
+"""Typed assurance results (ASSURANCE.md, contract version 2).
 
 A verification run produces a Report with an Outcome for *every* dimension;
 nothing is omitted, so an unperformed check can only ever read as
@@ -10,9 +10,12 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from enum import Enum
 from types import MappingProxyType
-from typing import Any, Dict, FrozenSet, List, Mapping, Tuple
+from typing import Any, Dict, FrozenSet, List, Mapping, Optional, Tuple
 
-CONTRACT = "4gartha.assurance/1"
+# Version 2: governance can PASS, but only through the external anchoring
+# procedure (anchor.py) with a trust policy the verifier supplies. Every other
+# dimension means what it meant in version 1.
+CONTRACT = "4gartha.assurance/2"
 
 
 class Status(str, Enum):
@@ -46,9 +49,13 @@ class Outcome:
     status: Status
     detail: str
     problems: Tuple[str, ...] = ()
+    # Machine-readable facts behind the status (e.g. a governance PASS names
+    # its checkpoint, log and time bound). Empty unless a procedure supplies it.
+    evidence: Optional[Mapping[str, Any]] = field(default=None, compare=False)
 
     def to_dict(self) -> Dict[str, Any]:
-        return {"status": self.status.value, "detail": self.detail, "problems": list(self.problems)}
+        return {"status": self.status.value, "detail": self.detail, "problems": list(self.problems),
+                "evidence": dict(self.evidence) if self.evidence else {}}
 
 
 @dataclass(frozen=True)
@@ -184,7 +191,8 @@ PROFILES: Mapping[str, Profile] = MappingProxyType({
         ),
         _profile(
             "governed",
-            "integrity, and preservation/admission verified against external anchoring evidence.",
+            "integrity, and every record in the lineage is in a checkpoint signed by the policy's anchor key "
+            "and logged externally under a witness quorum (requires --anchor-policy).",
             {Dimension.GOVERNANCE: _P},
         ),
     )

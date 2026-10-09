@@ -1,6 +1,6 @@
-"""Conformance tests for ASSURANCE.md (assurance contract 4gartha.assurance/1).
+"""Conformance tests for ASSURANCE.md (assurance contract 4gartha.assurance/2).
 
-Each test is tagged with the conformance ID it establishes (C1..C8). Per
+Each test is tagged with the conformance ID it establishes (C1..C10). Per
 LAW-0001 these tests, not the prose, are normative: a claim in ASSURANCE.md
 without a passing test here is not a claim the implementation makes.
 
@@ -45,7 +45,9 @@ from ledger_testutil import (
 
 D = Dimension
 S = Status
-NEVER_PASS_IN_V1 = (D.EXECUTION_SAFETY, D.REPRODUCIBILITY, D.AUTHENTICITY, D.GOVERNANCE)
+# Contract v2: these never PASS. Governance PASSes only through external
+# anchoring under a policy the verifier supplies (C10), never without one (C8).
+NEVER_PASS = (D.EXECUTION_SAFETY, D.REPRODUCIBILITY, D.AUTHENTICITY)
 
 
 def _cli_status(stdout: str, dim: Dimension) -> str:
@@ -599,12 +601,13 @@ def _scenarios(root: Path, tmp_path: Path) -> List[Tuple[str, Report]]:
     ]
 
 
-def test_C8_reports_cover_every_dimension_and_v1_cannot_pass_unimplemented_ones(tmp_path: Path) -> None:
+def test_C8_reports_cover_every_dimension_and_unimplemented_ones_never_pass(tmp_path: Path) -> None:
     root = init_repo(tmp_path)
-    for name, report in _scenarios(root, tmp_path):
+    for name, report in _scenarios(root, tmp_path):  # no anchor policy in any of these
         assert set(report.outcomes) == set(Dimension), name
-        for dim in NEVER_PASS_IN_V1:
-            assert status(report, dim) is not S.PASS, f"{name}: {dim.value} must not PASS in contract v1"
+        for dim in NEVER_PASS:
+            assert status(report, dim) is not S.PASS, f"{name}: {dim.value} must not PASS in contract v2"
+        assert status(report, D.GOVERNANCE) is not S.PASS, f"{name}: governance must not PASS without an anchor policy"
         if report.transforms_executed:
             assert status(report, D.EXECUTION_SAFETY) is S.FAIL, name
         for profile in ("isolated-replay", "reproducible", "authenticated-admission", "governed"):
@@ -729,3 +732,645 @@ def test_C9_record_reject_vectors(tmp_path: Path, name: str) -> None:
     with pytest.raises(ValueError):
         records.write(init_repo(tmp_path), record)
     assert list((tmp_path / "ledger" / "records").iterdir()) == []
+
+
+# --- C10: governance PASSes only through external anchoring, under the -----
+# --- verifier's own trust policy (4gartha.anchor/1, ASSURANCE.md 5.7) ------
+#
+# Fixtures are built in temporary repositories with public test keys and a
+# test-only Sigsum log (tools/anchor_fixtures.py). Policies are written by the
+# verifier, outside the repository under test, unless a test plants one inside
+# it on purpose. Tests needing Ed25519 require the [anchor] extra (installed by
+# requirements.lock); test_C10_ci_has_the_anchor_extra fails in CI without it.
+
+import hashlib  # noqa: E402
+import os  # noqa: E402
+import subprocess  # noqa: E402
+
+from ledger import anchor as A  # noqa: E402
+from ledger.verifier import verify  # noqa: E402
+
+needs_ed25519 = pytest.mark.skipif(not A.ed25519_available(), reason="needs the [anchor] extra (cryptography)")
+
+if A.ed25519_available():
+    from anchor_testutil import (  # noqa: E402
+        F, K, ORIGIN, STD_COSIGNERS, STD_TIME, T0, anchor_batch, anchored_repo, batch_dir, log_batch,
+        note_text, policy, write_policy, write_proof,
+    )
+
+ANCHOR_VECTORS = json.loads((REPO / "conformance" / "anchor-v1-vectors.json").read_text(encoding="utf-8"))
+_anchor_by_name = lambda section: {v["name"]: v for v in ANCHOR_VECTORS[section]}  # noqa: E731
+
+
+def _gov(report: Report):
+    return report.outcomes[D.GOVERNANCE]
+
+
+def test_C10_ci_has_the_anchor_extra() -> None:
+    # CI must exercise the signature checks, not skip them.
+    if os.environ.get("CI", "").lower() != "true":
+        pytest.skip("only enforced in CI")
+    assert A.ed25519_available(), "CI must install the [anchor] extra (cryptography, via requirements.lock)"
+
+
+@needs_ed25519
+def test_C10_valid_anchoring_passes_and_reports_the_quorum_time_bound(tmp_path: Path) -> None:
+    root, a, d, size = anchored_repo(tmp_path / "repo")
+    report = check(root, d, anchor_policy=policy())
+    oc = _gov(report)
+    assert oc.status is S.PASS, oc
+    assert evaluate(report, PROFILES["governed"]).satisfied
+    ev = dict(oc.evidence)
+    # Quorum 2 of 3 with cosignatures at T0+300, T0+100, T0+200: the bound is
+    # the second-smallest timestamp, never the earliest (one dishonest witness
+    # could backdate that).
+    assert ev["anchored_no_later_than"] == STD_TIME == T0 + 200
+    assert ev["anchored_no_later_than_utc"] == "2026-01-01T00:03:20Z"
+    assert ev["quorum_witnesses"] == ["w2", "w3"]
+    assert (ev["checkpoint_size"], ev["origin"]) == (size, ORIGIN)
+    assert ev["policy_sha256"] == policy().sha256
+    assert "not freshness, completeness, absence of forks" in oc.detail
+    for dim in (D.EXECUTION_SAFETY, D.REPRODUCIBILITY, D.AUTHENTICITY):
+        assert status(report, dim) is not S.PASS
+
+
+@needs_ed25519
+def test_C10_cli_governed_profile_with_the_verifiers_policy(tmp_path: Path) -> None:
+    root, a, d, _ = anchored_repo(tmp_path / "repo")
+    pol = write_policy(tmp_path / "verifier" / "anchor-policy")
+    proc = run_cli(root, "verify", d, "--profile", "governed", "--anchor-policy", str(pol))
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+    assert _cli_status(proc.stdout, D.GOVERNANCE) == "PASS"
+    assert "profile governed: SATISFIED" in proc.stdout
+    doc = json.loads(run_cli(root, "verify", d, "--json", "--anchor-policy", str(pol)).stdout)
+    assert doc["report"]["contract"] == "4gartha.assurance/2"
+    assert doc["report"]["outcomes"]["governance"]["evidence"]["anchored_no_later_than"] == STD_TIME
+    no_policy = run_cli(root, "verify", d, "--profile", "governed")
+    assert no_policy.returncode == 2 and _cli_status(no_policy.stdout, D.GOVERNANCE) == "NOT_CHECKED"
+
+
+@needs_ed25519
+def test_C10_no_policy_is_not_checked_even_with_valid_anchors(tmp_path: Path) -> None:
+    root, a, d, _ = anchored_repo(tmp_path / "repo")
+    for rid in (a, d):
+        oc = _gov(check(root, rid))
+        assert oc.status is S.NOT_CHECKED
+        assert "no anchor trust policy supplied" in oc.detail
+
+
+@needs_ed25519
+def test_C10_policy_in_the_repository_is_never_read(tmp_path: Path) -> None:
+    # A4 (or a careless commit) anchors with its own key and plants a policy
+    # trusting that key wherever a verifier might look for one.
+    root = init_repo(tmp_path / "repo")
+    a = admit(root, b"evidence")
+    size = anchor_batch(root, signer=K["attacker"].signer)
+    log_batch(root, size, submitter=K["attacker"])
+    planted = F.policy_text(anchor=K["attacker"])
+    for where in ("anchor-policy", "ledger/anchor-policy", ".4gartha/anchor-policy"):
+        write_policy(root / where, planted)
+    assert _gov(check(root, a)).status is S.NOT_CHECKED                          # no policy: nothing loaded
+    honest = _gov(check(root, a, anchor_policy=policy()))
+    assert honest.status is S.NOT_CHECKED                                        # the verifier's policy decides
+    assert any("no signature by the policy's anchor key" in p for p in honest.problems)
+    proc = run_cli(root, "verify", a, "--profile", "governed")
+    assert proc.returncode == 2 and _cli_status(proc.stdout, D.GOVERNANCE) == "NOT_CHECKED"
+    # Pointing at the planted file explicitly is the verifier's own choice, and
+    # the CLI warns that the repository's writers control it.
+    explicit = run_cli(root, "verify", a, "--anchor-policy", str(root / "anchor-policy"))
+    assert "is inside the repository being verified" in explicit.stderr
+
+
+@needs_ed25519
+def test_C10_unanchored_records_are_not_checked(tmp_path: Path) -> None:
+    root = init_repo(tmp_path / "repo")
+    a = admit(root, b"first")
+    oc = _gov(check(root, a, anchor_policy=policy()))  # no ledger/anchors/ at all
+    assert oc.status is S.NOT_CHECKED and "1 of 1 lineage record(s) not yet anchored" in oc.detail
+    size = anchor_batch(root)
+    log_batch(root, size)
+    later = derive(root, b"first!", [a], concat_transform(), params={"suffix": "!"})
+    assert _gov(check(root, a, anchor_policy=policy())).status is S.PASS
+    oc = _gov(check(root, later, anchor_policy=policy()))
+    assert oc.status is S.NOT_CHECKED and "1 of 2 lineage record(s) not yet anchored" in oc.detail
+    assert oc.problems == (f"not anchored: {later}",)
+
+
+@needs_ed25519
+def test_C10_the_smallest_trusted_covering_checkpoint_is_used(tmp_path: Path) -> None:
+    root = init_repo(tmp_path / "repo")
+    a = admit(root, b"first")
+    s1 = anchor_batch(root)                      # checkpoint 1: never logged
+    b = admit(root, b"second")
+    s2 = anchor_batch(root)
+    log_batch(root, s2)                           # checkpoint 2 covers leaf 0 as well
+    oc = _gov(check(root, a, anchor_policy=policy()))
+    assert oc.status is S.PASS and oc.evidence["checkpoint_size"] == s2 == 2
+    log_batch(root, s1, cosigners=(("w1", T0 + 10), ("w3", T0 + 20)))
+    oc = _gov(check(root, a, anchor_policy=policy()))
+    assert oc.status is S.PASS and (oc.evidence["checkpoint_size"], oc.evidence["anchored_no_later_than"]) == (1, T0 + 20)
+    assert _gov(check(root, b, anchor_policy=policy())).evidence["checkpoint_size"] == 2
+
+
+@needs_ed25519
+def test_C10_omitting_a_cosignature_never_lowers_the_time_bound(tmp_path: Path) -> None:
+    root = init_repo(tmp_path / "repo")
+    a = admit(root, b"evidence")
+    size = anchor_batch(root)
+    p = log_batch(root, size)
+    full = _gov(check(root, a, anchor_policy=policy())).evidence["anchored_no_later_than"]
+    import dataclasses
+    for keep in ((0, 1), (0, 2), (1, 2)):
+        write_proof(root, size, dataclasses.replace(p, cosignatures=tuple(p.cosignatures[i] for i in keep)))
+        oc = _gov(check(root, a, anchor_policy=policy()))
+        assert oc.status is S.PASS and oc.evidence["anchored_no_later_than"] >= full, keep
+    write_proof(root, size, dataclasses.replace(p, cosignatures=p.cosignatures[1:2]))
+    assert _gov(check(root, a, anchor_policy=policy())).status is S.NOT_CHECKED
+
+
+@needs_ed25519
+def test_C10_below_quorum_is_not_checked(tmp_path: Path) -> None:
+    root = init_repo(tmp_path / "repo")
+    a = admit(root, b"evidence")
+    size = anchor_batch(root)
+    log_batch(root, size, cosigners=(("w1", T0),))
+    oc = _gov(check(root, a, anchor_policy=policy()))
+    assert oc.status is S.NOT_CHECKED
+    assert any("witness quorum not met: 1 valid cosignature(s)" in p for p in oc.problems)
+    assert not evaluate(check(root, a, anchor_policy=policy()), PROFILES["governed"]).satisfied
+
+
+@needs_ed25519
+def test_C10_untrusted_signer_or_log_is_not_checked(tmp_path: Path) -> None:
+    root = init_repo(tmp_path / "repo")
+    a = admit(root, b"evidence")
+    size = anchor_batch(root, signer=K["attacker"].signer)
+    log_batch(root, size, submitter=K["attacker"])
+    oc = _gov(check(root, a, anchor_policy=policy()))
+    assert oc.status is S.NOT_CHECKED
+    assert any("no signature by the policy's anchor key" in p for p in oc.problems)
+    assert any("not the policy's anchor key" in p for p in oc.problems)
+    root2 = init_repo(tmp_path / "repo2")
+    a2 = admit(root2, b"evidence")
+    s2 = anchor_batch(root2)
+    log_batch(root2, s2, log=F.TestSigsumLog(K["other-log"]))
+    oc = _gov(check(root2, a2, anchor_policy=policy()))
+    assert oc.status is S.NOT_CHECKED and any("is not in the policy" in p for p in oc.problems)
+    other_origin = _gov(check(root2, a2, anchor_policy=policy(origin="4gartha.test/other")))
+    assert other_origin.status is S.NOT_CHECKED
+    assert any("is not the policy's anchor origin" in p for p in other_origin.problems)
+
+
+@needs_ed25519
+def test_C10_root_mismatch_fails_even_when_signed_by_the_trusted_key(tmp_path: Path) -> None:
+    root, a, d, size = anchored_repo(tmp_path / "repo")
+    bad = A.signed_checkpoint(ORIGIN, size, hashlib.sha256(b"not the root").digest(), K["anchor"].signer)
+    (batch_dir(root, size) / A.CHECKPOINT_FILE).write_bytes(bad)
+    log_batch(root, size)
+    oc = _gov(check(root, d, anchor_policy=policy()))
+    assert oc.status is S.FAIL
+    assert any("does not match the root" in p for p in oc.problems)
+
+
+@needs_ed25519
+def test_C10_missing_anchored_record_fails(tmp_path: Path) -> None:
+    root, a, d, size = anchored_repo(tmp_path / "repo")
+    other = admit(root, b"unrelated")
+    s2 = anchor_batch(root)
+    log_batch(root, s2)
+    assert _gov(check(root, d, anchor_policy=policy())).status is S.PASS
+    records.record_path(root, other).unlink()   # outside d's lineage, but anchored
+    oc = _gov(check(root, d, anchor_policy=policy()))
+    assert oc.status is S.FAIL
+    assert any(f"anchored record {other}" in p and "is missing" in p for p in oc.problems)
+
+
+@needs_ed25519
+def test_C10_non_contiguous_batches_fail(tmp_path: Path) -> None:
+    root, a, d, size = anchored_repo(tmp_path / "repo")
+    admit(root, b"third")
+    s2 = anchor_batch(root)
+    log_batch(root, s2)
+    # A fork: a second batch claiming to follow the same predecessor.
+    fork = batch_dir(root, s2 + 5)
+    fork.mkdir()
+    (fork / A.LEAVES_FILE).write_bytes((batch_dir(root, s2) / A.LEAVES_FILE).read_bytes()
+                                       .replace(b'"previous_size":2', b'"previous_size":%d' % (s2 + 4)))
+    (fork / A.CHECKPOINT_FILE).write_bytes((batch_dir(root, s2) / A.CHECKPOINT_FILE).read_bytes())
+    oc = _gov(check(root, d, anchor_policy=policy()))
+    assert oc.status is S.FAIL
+    assert any("batches must be contiguous" in p for p in oc.problems)
+
+
+@needs_ed25519
+def test_C10_duplicate_leaf_fails(tmp_path: Path) -> None:
+    root, a, d, size = anchored_repo(tmp_path / "repo")
+    a_again = A.leaves_document(size, [a])
+    bdir = batch_dir(root, size + 1)
+    bdir.mkdir()
+    (bdir / A.LEAVES_FILE).write_bytes(a_again)
+    tree = A.Tree()
+    for rid in sorted([a, d]) + [a]:
+        tree.append(A.leaf_hash(A.record_leaf(rid)))
+    (bdir / A.CHECKPOINT_FILE).write_bytes(A.signed_checkpoint(ORIGIN, size + 1, tree.root(), K["anchor"].signer))
+    log_batch(root, size + 1)
+    oc = _gov(check(root, d, anchor_policy=policy()))
+    assert oc.status is S.FAIL
+    assert any(f"record {a} was already anchored" in p for p in oc.problems)
+
+
+def _tamper_body(root: Path, size: int, p) -> None:
+    path = batch_dir(root, size) / A.CHECKPOINT_FILE
+    path.write_bytes(path.read_bytes().replace(b"\n%d\n" % size, b"\n%d\n" % (size + 1), 1))
+
+
+def _wrong_key_signature(root: Path, size: int, p) -> None:
+    text = note_text(root, size)
+    kid = A.note_key_id(ORIGIN, A.SIG_TYPE_ED25519, K["anchor"].public)
+    (batch_dir(root, size) / A.CHECKPOINT_FILE).write_bytes(
+        text + b"\n" + A.signature_line(ORIGIN, kid, K["attacker"].sign(text)))
+
+
+def _tampered_path(root: Path, size: int, p) -> None:
+    import dataclasses
+    write_proof(root, size, dataclasses.replace(p, path=(bytes(32),) + p.path[1:]))
+
+
+def _tampered_cosignature(root: Path, size: int, p) -> None:
+    import dataclasses
+    c = list(p.cosignatures)
+    c[0] = dataclasses.replace(c[0], signature=bytes(64))   # w1; w2 and w3 still meet the quorum
+    write_proof(root, size, dataclasses.replace(p, cosignatures=tuple(c)))
+
+
+def _backdated_cosignature(root: Path, size: int, p) -> None:
+    import dataclasses
+    c = list(p.cosignatures)
+    c[2] = dataclasses.replace(c[2], timestamp=T0 - 365 * 86400)   # w3 "cosigned a year earlier"
+    write_proof(root, size, dataclasses.replace(p, cosignatures=tuple(c)))
+
+
+def _tampered_tree_head(root: Path, size: int, p) -> None:
+    import dataclasses
+    write_proof(root, size, dataclasses.replace(p, tree_head_signature=bytes(64)))
+
+
+def _tampered_leaf_signature(root: Path, size: int, p) -> None:
+    import dataclasses
+    write_proof(root, size, dataclasses.replace(p, leaf_signature=K["anchor"].sign(b"something else")))
+
+
+@needs_ed25519
+@pytest.mark.parametrize("tamper, reason", [
+    (_tamper_body, "checkpoint is for tree size"),
+    (_wrong_key_signature, "checkpoint signature by the policy's anchor key does not verify"),
+    (_tampered_path, "does not lead to the root hash"),
+    (_tampered_cosignature, "cosignature by policy witness 'w1' does not verify"),
+    (_backdated_cosignature, "cosignature by policy witness 'w3' does not verify"),
+    (_tampered_tree_head, "tree head signature by policy log"),
+    (_tampered_leaf_signature, "sigsum.proof does not log this checkpoint"),
+], ids=["checkpoint-body", "wrong-key-signature", "inclusion-path", "cosignature-quorum-otherwise-met",
+        "backdated-cosignature", "tree-head-signature", "leaf-signature"])
+def test_C10_tampered_evidence_fails(tmp_path: Path, tamper, reason: str) -> None:
+    root, a, d, size = anchored_repo(tmp_path / "repo")
+    p = A.parse_sigsum_proof((batch_dir(root, size) / A.PROOF_FILE).read_bytes())
+    tamper(root, size, p)
+    oc = _gov(check(root, d, anchor_policy=policy()))
+    assert oc.status is S.FAIL, oc
+    assert any(reason in prob for prob in oc.problems), oc.problems
+
+
+@needs_ed25519
+def test_C10_a_failure_anywhere_in_the_anchor_log_fails_every_record(tmp_path: Path) -> None:
+    # Add-only storage makes this permanent once committed, which is why
+    # `ledger anchor verify --anchor-policy` must pass before a batch is committed.
+    root, a, d, size = anchored_repo(tmp_path / "repo")
+    admit(root, b"later")
+    s2 = anchor_batch(root)
+    p = log_batch(root, s2)
+    assert _gov(check(root, a, anchor_policy=policy())).status is S.PASS
+    _tampered_cosignature(root, s2, p)
+    oc = _gov(check(root, a, anchor_policy=policy()))
+    assert oc.status is S.FAIL and any(f"checkpoint {A.batch_name(s2)}" in prob for prob in oc.problems)
+
+
+def _unexpected_file(root: Path, size: int) -> None:
+    (batch_dir(root, size) / "notes.txt").write_text("x")
+
+
+def _missing_checkpoint(root: Path, size: int) -> None:
+    (batch_dir(root, size) / A.CHECKPOINT_FILE).unlink()
+
+
+def _noncanonical_leaves(root: Path, size: int) -> None:
+    path = batch_dir(root, size) / A.LEAVES_FILE
+    path.write_bytes(path.read_bytes() + b"\n")
+
+
+def _crlf_checkpoint(root: Path, size: int) -> None:
+    path = batch_dir(root, size) / A.CHECKPOINT_FILE
+    path.write_bytes(path.read_bytes().replace(b"\n", b"\r\n"))
+
+
+def _proof_version_1(root: Path, size: int) -> None:
+    path = batch_dir(root, size) / A.PROOF_FILE
+    path.write_bytes(path.read_bytes().replace(b"version=2", b"version=1"))
+
+
+def _unexpected_entry(root: Path, size: int) -> None:
+    (A.anchors_dir(root) / "latest").write_text(A.batch_name(size))
+
+
+def _symlinked_leaves(root: Path, size: int) -> None:
+    path = batch_dir(root, size) / A.LEAVES_FILE
+    real = root / "leaves-copy.json"
+    real.write_bytes(path.read_bytes())
+    path.unlink()
+    path.symlink_to(real)
+
+
+@needs_ed25519
+@pytest.mark.parametrize("damage, reason", [
+    (_unexpected_file, "unexpected file 'notes.txt'"),
+    (_missing_checkpoint, "missing checkpoint"),
+    (_noncanonical_leaves, "leaves.json is not canonical JSON"),
+    (_crlf_checkpoint, "control character U+000D"),
+    (_proof_version_1, "pins version 2"),
+    (_unexpected_entry, "unexpected entry"),
+    (_symlinked_leaves, "not a regular file"),
+], ids=["unexpected-file", "missing-checkpoint", "noncanonical-leaves", "crlf-checkpoint", "proof-version-1",
+        "unexpected-entry", "symlink"])
+def test_C10_malformed_anchor_files_fail(tmp_path: Path, damage, reason: str) -> None:
+    root, a, d, size = anchored_repo(tmp_path / "repo")
+    damage(root, size)
+    oc = _gov(check(root, d, anchor_policy=policy()))
+    assert oc.status is S.FAIL, oc
+    assert any(reason in p for p in oc.problems), oc.problems
+
+
+@needs_ed25519
+def test_C10_integrity_failure_prevents_governance(tmp_path: Path) -> None:
+    root, a, d, size = anchored_repo(tmp_path / "repo")
+    rec = record_of(root, a)
+    from ledger.cas import CasPaths
+    CasPaths.from_repo_root(root).object_path(rec["output"]["artifact"]).unlink()
+    report = check(root, d, anchor_policy=policy())
+    assert status(report, D.ARTIFACT_INTEGRITY) is S.FAIL
+    assert _gov(report).status is S.NOT_CHECKED and "integrity checks did not pass" in _gov(report).detail
+
+
+_BLOCK_CRYPTOGRAPHY = (
+    "import sys\n"
+    "class _Block:\n"
+    "    def find_spec(self, name, path=None, target=None):\n"
+    "        if name == 'cryptography' or name.startswith('cryptography.'):\n"
+    "            raise ImportError('blocked for this test')\n"
+    "sys.meta_path.insert(0, _Block())\n"
+)
+
+
+@needs_ed25519
+def test_C10_without_the_ed25519_extra_governance_is_not_checked(tmp_path: Path) -> None:
+    root, a, d, size = anchored_repo(tmp_path / "repo")
+    pol = write_policy(tmp_path / "verifier" / "anchor-policy")
+    code = _BLOCK_CRYPTOGRAPHY + (
+        "import json, sys\n"
+        "from pathlib import Path\n"
+        "from ledger import anchor\n"
+        "from ledger.verifier import verify\n"
+        "assert not anchor.ed25519_available()\n"
+        "pol = anchor.load_policy(Path(sys.argv[2]))\n"
+        "oc = verify(Path(sys.argv[1]), [sys.argv[3]], anchor_policy=pol).outcomes\n"
+        "g = [v for k, v in oc.items() if k.value == 'governance'][0]\n"
+        "print(json.dumps(g.to_dict()))\n"
+    )
+    run = lambda: subprocess.run([PYTHON, "-c", code, str(root), str(pol), d],  # noqa: E731
+                                 capture_output=True, text=True, timeout=120)
+    proc = run()
+    assert proc.returncode == 0, proc.stderr
+    g = json.loads(proc.stdout)
+    assert g["status"] == "NOT_CHECKED"
+    assert "pip install 'epistemic-ledger[anchor]'" in g["detail"]
+    # Hash-only contradictions are still found without Ed25519.
+    _tampered_path(root, size, A.parse_sigsum_proof((batch_dir(root, size) / A.PROOF_FILE).read_bytes()))
+    g = json.loads(run().stdout)
+    assert g["status"] == "FAIL" and any("does not lead to the root hash" in p for p in g["problems"])
+
+
+def test_C10_policy_must_require_witnesses_and_reject_weak_keys(tmp_path: Path) -> None:
+    good = _anchor_by_name("policies")["valid"]["text"]
+    with pytest.raises(A.PolicyError, match="quorum none"):
+        A.parse_policy(good.replace("quorum quorum-rule", "quorum none").encode())
+    with pytest.raises(A.PolicyError, match="small-order"):
+        A.parse_policy(good.replace(good.split("witness w3 ")[1].split("\n")[0], "00" * 32).encode())
+    root = init_repo(tmp_path / "repo")
+    rid = admit(root, b"x")
+    bad = tmp_path / "bad-policy"
+    bad.write_text(good.replace("quorum quorum-rule", "quorum none"))
+    proc = run_cli(root, "verify", rid, "--anchor-policy", str(bad))
+    assert proc.returncode == 1 and "invalid anchor policy" in proc.stderr
+
+
+# Language-neutral vectors (conformance/anchor-v1-vectors.json): every expected
+# outcome below is also checked against sigsum-go and x/mod's signed-note code
+# by ci/anchor-go, which records the reference outcome next to ours.
+
+
+def test_C10_vector_constants_and_pins() -> None:
+    v = ANCHOR_VECTORS
+    assert (v["protocol"], v["policy_format"]) == (A.PROTOCOL, A.POLICY_FORMAT) == ("4gartha.anchor/1", "4gartha.anchor-policy/1")
+    assert "sigsum-go v0.14.1" in v["pinned_specifications"]["sigsum_go"]
+    assert "signed-note@v1.1.0" in v["pinned_specifications"]["c2sp"]
+    names = {s: set(_anchor_by_name(s)) for s in ("checkpoints", "policies", "sigsum_proofs", "leaves_json")}
+    assert {"valid", "key-id-collision", "wrong-content-size", "unknown-key-under-origin-name", "crlf",
+            "double-space-in-signature-line", "signature-noncanonical-base64"} <= names["checkpoints"]
+    assert {"valid", "below-quorum", "tampered-cosignature-quorum-otherwise-met", "backdated-cosignature-timestamp",
+            "omitted-cosignature-raises-time-bound", "tampered-inclusion-path", "crlf", "double-space-in-cosignature",
+            "format-version-1", "unknown-log", "leaf-by-other-submitter"} <= names["sigsum_proofs"]
+    assert {"quorum-none", "small-order-witness-key", "crlf", "none-as-member"} <= names["policies"]
+
+
+@needs_ed25519
+def test_C10_vectors_reproduce_from_the_generator() -> None:
+    assert F.render() == (REPO / "conformance" / "anchor-v1-vectors.json").read_bytes(), \
+        "regenerate with: python tools/anchor_fixtures.py --write"
+
+
+def test_C10_rfc6962_known_answers() -> None:
+    v = ANCHOR_VECTORS["rfc6962"]
+    leaves = [A.leaf_hash(bytes.fromhex(h)) for h in v["leaves"]]
+    tree = A.Tree()
+    assert tree.root().hex() == v["roots"][0] == hashlib.sha256(b"").hexdigest()
+    for n in range(1, len(leaves) + 1):
+        tree.append(leaves[n - 1])
+        assert A.root_of(leaves[:n]).hex() == tree.root().hex() == v["roots"][n], n
+
+
+def test_C10_anchor_tree_vectors() -> None:
+    v = ANCHOR_VECTORS["anchor_tree"]
+    leaves = [A.leaf_hash(A.record_leaf(r)) for r in v["records"]]
+    assert [h.hex() for h in leaves] == v["leaf_hashes"]
+    assert v["leaf_hashes"][0] == hashlib.sha256(b"\x00" + bytes.fromhex(v["records"][0])).hexdigest()
+    for n in range(len(leaves) + 1):
+        assert A.root_of(leaves[:n]).hex() == v["roots"][n]
+    for inc in v["inclusion"]:
+        i, n, path = inc["index"], inc["size"], [bytes.fromhex(h) for h in inc["path"]]
+        assert A.inclusion_path(i, leaves[:n]) == path
+        root = bytes.fromhex(v["roots"][n])
+        assert A.verify_inclusion(leaves[i], i, n, root, path) is None
+        if path:
+            assert A.verify_inclusion(leaves[i], i, n, root, [bytes(32)] + path[1:]) is not None
+
+
+@needs_ed25519
+def test_C10_signed_note_spec_example() -> None:
+    ex = ANCHOR_VECTORS["signed_note_example"]
+    name, kid, key = ex["vkey"].split("+")
+    raw = A.b64decode_canonical(key)
+    note = A.parse_note(ex["note"].encode())
+    assert A.note_key_id(name, raw[0], raw[1:]).hex() == kid == note.signatures[0].key_id.hex()
+    assert A.ed25519_verify(raw[1:], note.text, note.signatures[0].signature)
+
+
+@pytest.mark.parametrize("name", sorted(_anchor_by_name("leaves_json")))
+def test_C10_leaves_json_vectors(name: str) -> None:
+    v = _anchor_by_name("leaves_json")[name]
+    if v["expect"] == "accept":
+        prev, rids = A.parse_leaves(v["text"].encode())
+        assert A.leaves_document(prev, rids) == v["text"].encode()
+    else:
+        with pytest.raises(A.FormatError) as exc:
+            A.parse_leaves(v["text"].encode())
+        assert v["reason"] in str(exc.value)
+
+
+@needs_ed25519
+@pytest.mark.parametrize("name", sorted(_anchor_by_name("checkpoints")))
+def test_C10_checkpoint_vectors(name: str) -> None:
+    v = _anchor_by_name("checkpoints")[name]
+    try:
+        note = A.parse_note(v["note"].encode())
+        body = A.parse_checkpoint_body(note.text)
+    except A.FormatError as e:
+        got, why = "malformed", str(e)
+    else:
+        fail, nc = A.note_signature_problems(note, v["origin"], bytes.fromhex(v["public_key"]), True)
+        got, why = ("invalid", fail[0]) if fail else ("untrusted", nc[0]) if nc else ("trusted", "")
+        if got == "trusted":
+            assert body.origin == v["origin"]
+    assert got == v["expect"], why
+    assert v["reason"] is None or v["reason"] in why
+
+
+@pytest.mark.parametrize("name", sorted(_anchor_by_name("policies")))
+def test_C10_policy_vectors(name: str) -> None:
+    v = _anchor_by_name("policies")[name]
+    if v["expect"] == "accept":
+        A.parse_policy(v["text"].encode())
+    else:
+        with pytest.raises(A.PolicyError) as exc:
+            A.parse_policy(v["text"].encode())
+        assert v["reason"] in str(exc.value)
+
+
+@needs_ed25519
+@pytest.mark.parametrize("name", sorted(_anchor_by_name("sigsum_proofs")))
+def test_C10_sigsum_proof_vectors(name: str) -> None:
+    v = _anchor_by_name("sigsum_proofs")[name]
+    pol = A.parse_policy(v["policy"].encode())
+    assert pol.anchor_key.hex() == v["anchor_public_key"]
+    time = None
+    try:
+        p = A.parse_sigsum_proof(v["proof"].encode())
+    except A.FormatError as e:
+        got, why = "FAIL", str(e)
+    else:
+        r = A.sigsum_proof_trust(p, v["checkpoint_text"].encode(), pol, True)
+        got, why = ("FAIL", "; ".join(r.fail)) if r.fail else ("NOT_CHECKED", "; ".join(r.not_checked)) \
+            if r.not_checked else ("PASS", "")
+        time = r.time if got == "PASS" else None
+    assert got == v["expect"], why
+    assert time == v["anchored_no_later_than"]
+    assert v["reason"] is None or v["reason"] in why, why
+
+
+# C10, repository side: anchors are add-only and CI checks their integrity.
+# These are repository controls (ASSURANCE.md 5.7): they guard honest changes
+# and A1 against a reviewing maintainer, not A4, which controls them.
+
+
+@needs_ed25519
+@pytest.mark.skipif(shutil.which("git") is None, reason="git not available")
+def test_C10_anchor_files_are_add_only(tmp_path: Path) -> None:
+    root, a, d, size = anchored_repo(tmp_path / "repo")
+    (root / "tools").mkdir()
+    for name in ("check_append_only.py", "_gitdiff.py"):
+        shutil.copyfile(REPO / "tools" / name, root / "tools" / name)
+    git(root, "init", "-q")
+    commit_all(root, "anchored")
+    proof = batch_dir(root, size) / A.PROOF_FILE
+
+    def append_only() -> subprocess.CompletedProcess:
+        return subprocess.run([PYTHON, str(root / "tools" / "check_append_only.py"), "HEAD~1"], cwd=root,
+                              capture_output=True, text=True, timeout=120)
+
+    admit(root, b"more")
+    s2 = anchor_batch(root)
+    log_batch(root, s2)
+    commit_all(root, "second batch")
+    assert append_only().returncode == 0                      # additions are allowed
+    _tampered_cosignature(root, size, A.parse_sigsum_proof(proof.read_bytes()))
+    commit_all(root, "rewrite a stored proof")
+    proc = append_only()
+    assert proc.returncode == 2 and "ledger/anchors/" in proc.stderr
+    git(root, "rm", "-q", "-r", f"ledger/anchors/{A.batch_name(s2)}")
+    commit_all(root, "delete a batch")
+    proc = append_only()
+    assert proc.returncode == 2 and f"ledger/anchors/{A.batch_name(s2)}" in proc.stderr
+
+
+@pytest.mark.skipif(shutil.which("git") is None, reason="git not available")
+@pytest.mark.parametrize("path, ok", [
+    ("ledger/anchors/000000000003/leaves.json", True),
+    ("ledger/anchors/000000000003/checkpoint", True),
+    ("ledger/anchors/000000000003/sigsum.proof", True),
+    ("ledger/anchors/3/leaves.json", False),
+    ("ledger/anchors/000000000003/policy", False),
+    ("ledger/anchors/anchor-policy", False),
+    ("ledger/anchors/000000000003/sub/leaves.json", False),
+])
+def test_C10_record_gate_admits_only_anchor_batch_paths(tmp_path: Path, path: str, ok: bool) -> None:
+    root = init_repo(tmp_path)
+    (root / "tools").mkdir()
+    for name in ("verify_new_records.py", "_gitdiff.py"):
+        shutil.copyfile(REPO / "tools" / name, root / "tools" / name)
+    git(root, "init", "-q")
+    commit_all(root, "baseline")
+    (root / path).parent.mkdir(parents=True, exist_ok=True)
+    (root / path).write_text("x")
+    commit_all(root, "add")
+    proc = subprocess.run([PYTHON, str(root / "tools" / "verify_new_records.py"), "HEAD~1"], cwd=root,
+                          capture_output=True, text=True, timeout=120)
+    if ok:
+        assert proc.returncode == 0, proc.stderr
+    else:
+        assert proc.returncode == 2 and "expected ledger/anchors/<12-digit tree size>/" in proc.stderr
+
+
+def test_C10_ci_checks_anchor_integrity_and_runs_the_reference_implementation() -> None:
+    ci = _code_lines(REPO / ".github" / "workflows" / "ci.yml")
+    text = "\n".join(ci)
+    job = text.split("  wheel:")[0]   # the required Ledger Integrity job
+    assert re.search(r"^\s+run: ledger anchor verify\s*$", job, re.M), "CI must audit the anchor log"
+    assert "--anchor-policy" not in job, "CI cannot judge trust; it must not pretend to with a repository policy"
+    assert "run: bash ci/verify_anchor_vectors.sh" in job
+    assert job.index("actions/setup-go") < job.index("ci/verify_anchor_vectors.sh")
+    assert "go-version-file: ci/anchor-go/go.mod" in job
+    script = (REPO / "ci" / "verify_anchor_vectors.sh").read_text()
+    assert "set -euo pipefail" in script and "GOFLAGS=-mod=readonly" in script and "GOTOOLCHAIN=local" in script
+    assert "-sigsum-verify" in script and "-anchors" in script
+    gomod = (REPO / "ci" / "anchor-go" / "go.mod").read_text()
+    assert "sigsum.org/sigsum-go v0.14.1" in gomod and "tool sigsum.org/sigsum-go/cmd/sigsum-verify" in gomod
+    gosum = (REPO / "ci" / "anchor-go" / "go.sum").read_text()
+    assert "sigsum.org/sigsum-go v0.14.1 h1:" in gosum
+    assert "ledger/anchors/" in (REPO / "tools" / "check_append_only.py").read_text()

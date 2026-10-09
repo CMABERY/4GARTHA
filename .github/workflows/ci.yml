@@ -43,6 +43,20 @@ jobs:
         # Complements, does not replace, the Python C9 conformance tests.
         run: bash ci/verify_record_ids.sh
 
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: ci/anchor-go/go.mod
+          cache-dependency-path: ci/anchor-go/go.sum
+
+      - name: Independent anchor check (sigsum-go reference + sigsum-verify, no Python)
+        # Second implementation path for conformance/anchor-v1-vectors.json and
+        # ledger/anchors: the Sigsum reference implementation (pinned in
+        # ci/anchor-go/go.sum) and golang.org/x/mod's signed-note code check
+        # every vector and every stored checkpoint root. Stored Sigsum proofs
+        # fail this step until an anchor policy is configured (ANCHOR_POLICY).
+        # Complements, does not replace, the Python C10 conformance tests.
+        run: bash ci/verify_anchor_vectors.sh
+
       - name: Resolve ledger diff base
         # Immutable, event-appropriate base (see tools/ci_diff_base.py):
         #   pull_request      -> pull_request.base.sha, range base...HEAD
@@ -74,6 +88,14 @@ jobs:
         run: |
           python tools/verify_new_records.py $LEDGER_DIFF_ARGS "$LEDGER_DIFF_BASE"
 
+      - name: Anchor log integrity (no network; trust is not judged)
+        # The whole anchor log (4gartha.anchor/1): batches contiguous, every
+        # checkpoint root recomputed from leaves.json, every anchored record
+        # present and valid, every stored Sigsum proof includes its checkpoint.
+        # Integrity only: CI cannot judge trust, because the repository, and so
+        # CI, is controlled by its writers (ASSURANCE.md 5.7).
+        run: ledger anchor verify
+
   wheel:
     name: Built-wheel tests
     # The suite again, against the built and installed wheel rather than an
@@ -104,8 +126,15 @@ jobs:
         run: |
           "$RUNNER_TEMP/wheelenv/bin/python" - dist/*.whl <<'PY'
           import sys, zipfile
-          names = set(zipfile.ZipFile(sys.argv[1]).namelist())
+          zf = zipfile.ZipFile(sys.argv[1])
+          names = set(zf.namelist())
           assert "ledger/record.schema.json" in names, sorted(names)
+          assert "ledger/anchor.py" in names, sorted(names)
+          # The base install stays jsonschema-only: cryptography only via [anchor].
+          meta = zf.read(next(n for n in names if n.endswith(".dist-info/METADATA"))).decode()
+          reqs = [l for l in meta.splitlines() if l.startswith("Requires-Dist:")]
+          crypto = [r for r in reqs if "cryptography" in r]
+          assert crypto and all('extra == "anchor"' in r for r in crypto), reqs
           for gone in ("ledger/manifest.py", "ledger/verify.py", "ledger/replay.py", "ledger/node.schema.json"):
               assert gone not in names, gone
           print("wheel contents OK:", len(names), "entries")

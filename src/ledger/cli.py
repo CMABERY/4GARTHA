@@ -1,8 +1,12 @@
-"""`ledger` command line (protocol 4gartha.record/1, assurance contract 1).
+"""`ledger` command line (records 4gartha.record/1, anchors 4gartha.anchor/1,
+assurance contract 2).
 
 Exit status for verify/replay: 0 the requested profile is satisfied; 2 it is
-not; 3 a required dimension is ERROR (inconclusive). Refused writes and invalid
-arguments exit 1 with a message (argparse usage errors exit 2).
+not; 3 a required dimension is ERROR (inconclusive). For `anchor verify`: 0 the
+anchor log passes integrity (and, with --anchor-policy, every leaf is covered
+by trusted, externally logged evidence); 2 not; 3 inconclusive. Refused writes
+and invalid arguments (including an unusable anchor policy) exit 1 with a
+message (argparse usage errors exit 2).
 """
 from __future__ import annotations
 
@@ -11,10 +15,10 @@ import json
 import sys
 from contextlib import nullcontext
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
-from . import canonical, records
-from .assurance import PROFILES, Dimension, Report, evaluate
+from . import anchor, canonical, records
+from .assurance import PROFILES, Dimension, Outcome, Report, Status, evaluate
 from .cas import CasPaths, sha256_file, store_blob, verify_existing_object
 from .execution import RESTRICTED
 from .locks import ingest_session_lock, ingest_session_lock_enabled
@@ -178,16 +182,119 @@ def print_report(report: Report, profile_name: str, as_json: bool) -> int:
     return 3 if result.error else 2
 
 
+def _load_anchor_policy(repo_root: Path, path: Optional[str]) -> Optional[anchor.AnchorPolicy]:
+    """The verifier's own trust policy, only ever from the path given."""
+    if not path:
+        return None
+    try:
+        policy = anchor.load_policy(Path(path))
+    except anchor.PolicyError as e:
+        raise SystemExit(f"invalid anchor policy: {e}")
+    if Path(path).resolve().is_relative_to(repo_root.resolve()):
+        print(f"warning: anchor policy {path} is inside the repository being verified; anyone who can "
+              "write to the repository can change it (ASSURANCE.md 5.7)", file=sys.stderr)
+    return policy
+
+
 def cmd_verify(args: argparse.Namespace) -> int:
     repo_root = repo_root_from_cwd()
+    policy = _load_anchor_policy(repo_root, args.anchor_policy)
     wd = Path(args.workdir).resolve() if getattr(args, "workdir", None) else None
-    report = verify(repo_root, [args.id], replay=args.replay, workdir=wd, keep=getattr(args, "keep", False))
+    report = verify(repo_root, [args.id], replay=args.replay, workdir=wd, keep=getattr(args, "keep", False),
+                    anchor_policy=policy)
     return print_report(report, args.profile, args.json)
 
 
 def cmd_replay(args: argparse.Namespace) -> int:
     args.replay = True
     return cmd_verify(args)
+
+
+def cmd_anchor_create(args: argparse.Namespace) -> int:
+    repo_root = repo_root_from_cwd()
+    if not anchor.ed25519_available():
+        raise SystemExit(f"refused: signing a checkpoint needs Ed25519 ({anchor.INSTALL_HINT})")
+    try:
+        signer = anchor.load_signer(Path(args.key))
+    except (OSError, ValueError) as e:
+        raise SystemExit(f"refused: cannot load the anchor key: {e}")
+    with _session(repo_root, args):
+        try:
+            a, new = anchor.plan_batch(repo_root)
+            if not new:
+                raise anchor.AnchorRefused("nothing to anchor: every stored record is already in the anchor log")
+            # Every record entering the log must pass the integrity profile
+            # (record, lineage, artifacts) before anything is written.
+            _require_integrity(repo_root, new, "record")
+            bdir, size, root = anchor.write_batch(repo_root, a, new, signer, args.origin)
+        except anchor.AnchorRefused as e:
+            raise SystemExit(f"refused: {e}")
+    rel = bdir.relative_to(repo_root)
+    print(f"anchored {len(new)} record(s): {rel} (tree size {size}, root {root.hex()})")
+    print(f"checkpoint signed by anchor key {signer.public_key.hex()}")
+    print("next, before committing:")
+    print(f"  ledger anchor body {size} > checkpoint.body")
+    print(f"  sigsum-submit -k <anchor key> -p <sigsum policy> -o {rel}/{anchor.PROOF_FILE} checkpoint.body")
+    print("  ledger anchor verify --anchor-policy <your anchor policy>")
+    return 0
+
+
+def _print_outcome(label: str, oc: Outcome) -> None:
+    print(f"{label:<24} {oc.status.value:<15} {oc.detail}")
+    for prob in oc.problems:
+        for line in prob.splitlines():
+            print(f"    {line}")
+
+
+def cmd_anchor_verify(args: argparse.Namespace) -> int:
+    repo_root = repo_root_from_cwd()
+    policy = _load_anchor_policy(repo_root, args.anchor_policy)
+    a = anchor.audit(repo_root, policy)
+    integrity = anchor.integrity_outcome(a)
+    trust = anchor.trust_outcome(a) if policy is not None else Outcome(
+        Status.NOT_CHECKED, "no --anchor-policy supplied: signatures and external logging were not checked "
+                            "(a policy in the repository is never used)")
+    if args.json:
+        print(json.dumps({
+            "protocol": anchor.PROTOCOL,
+            "anchor_log": {"batches": len(a.batches), "size": a.size, "origin": a.origin},
+            "policy_sha256": policy.sha256 if policy else None,
+            "integrity": integrity.to_dict(),
+            "trust": trust.to_dict(),
+            "checkpoints": [t.to_dict() for t in a.trust],
+        }, indent=2, sort_keys=True))
+    else:
+        print(f"anchor log: {len(a.batches)} batch(es), {a.size} leaves, origin {a.origin}")
+        _print_outcome("integrity", integrity)
+        _print_outcome("trust", trust)
+        for t in a.trust:
+            when = f"logged no later than {anchor.utc(t.time)}; witnesses {', '.join(t.witnesses)}" if t.time is not None else ""
+            print(f"  checkpoint {anchor.batch_name(t.size)}  {t.status.value:<12} {when}")
+            for r in t.reasons:
+                print(f"    {r}")
+    required = [integrity] + ([trust] if policy is not None else [])
+    if any(o.status is Status.ERROR for o in required):
+        return 3
+    if integrity.status not in (Status.PASS, Status.NOT_APPLICABLE):
+        return 2
+    if policy is not None and trust.status is not Status.PASS:
+        return 2
+    return 0
+
+
+def cmd_anchor_body(args: argparse.Namespace) -> int:
+    repo_root = repo_root_from_cwd()
+    path = anchor.anchors_dir(repo_root) / anchor.batch_name(args.size) / anchor.CHECKPOINT_FILE
+    try:
+        note = anchor.parse_note(path.read_bytes())
+        anchor.parse_checkpoint_body(note.text)
+    except OSError as e:
+        raise SystemExit(f"cannot read {path}: {e}")
+    except anchor.FormatError as e:
+        raise SystemExit(f"{path}: {e}")
+    sys.stdout.buffer.write(note.text)
+    sys.stdout.buffer.flush()
+    return 0
 
 
 def ref_path(repo_root: Path, name: str) -> Path:
@@ -251,12 +358,20 @@ def _add_verify_args(p: argparse.ArgumentParser, default_profile: str) -> None:
         help=f"Assurance profile the result must satisfy (default: {default_profile}). See ASSURANCE.md.",
     )
     p.add_argument("--json", action="store_true", help="Print the machine-readable report.")
+    p.add_argument(
+        "--anchor-policy",
+        metavar="FILE",
+        help="Your trust policy for governance (4gartha.anchor-policy/1: anchor origin and key, Sigsum logs, "
+             "witnesses, quorum). Only this file is read; without it governance is NOT_CHECKED. "
+             "Signature checks need the [anchor] extra. See ASSURANCE.md 5.7.",
+    )
 
 
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         prog="ledger",
-        description="4GARTHA ledger CLI (records: 4gartha.record/1; assurance contract 1, see ASSURANCE.md).",
+        description="4GARTHA ledger CLI (records: 4gartha.record/1; anchors: 4gartha.anchor/1; "
+                    "assurance contract 2, see ASSURANCE.md).",
     )
     sub = p.add_subparsers(dest="cmd", required=True)
 
@@ -314,6 +429,31 @@ def build_parser() -> argparse.ArgumentParser:
     rs_get = rs.add_parser("get", help="Print the record ID a ref points at.")
     rs_get.add_argument("name")
     rs_get.set_defaults(fn=cmd_refs_get)
+
+    p_an = sub.add_parser("anchor", help="External anchoring of the ledger (4gartha.anchor/1; ASSURANCE.md 5.7).")
+    an = p_an.add_subparsers(dest="anchor_cmd", required=True)
+    an_create = an.add_parser(
+        "create",
+        help="Add every stored record not yet anchored as a new batch (ledger/anchors/<size>/: leaves.json and a "
+             "checkpoint signed with --key). Run on the maintainer's machine; logging it in Sigsum is a separate step.",
+    )
+    an_create.add_argument("--key", required=True, metavar="FILE",
+                           help="Unencrypted Ed25519 anchor private key (OpenSSH or PKCS#8 PEM). Never a repository file.")
+    an_create.add_argument("--origin", help="Checkpoint origin (required for the first batch; later batches must match).")
+    an_create.add_argument("--no-session-lock", action="store_true", help=lock_help)
+    an_create.set_defaults(fn=cmd_anchor_create)
+    an_verify = an.add_parser(
+        "verify",
+        help="Audit the whole anchor log. Without --anchor-policy: structure, contiguity, roots recomputed, "
+             "anchored records present, proofs include their checkpoints (what CI runs; no trust is judged).",
+    )
+    an_verify.add_argument("--anchor-policy", metavar="FILE",
+                           help="Your trust policy; also checks every signature, Sigsum proof and witness quorum.")
+    an_verify.add_argument("--json", action="store_true", help="Print the machine-readable result.")
+    an_verify.set_defaults(fn=cmd_anchor_verify)
+    an_body = an.add_parser("body", help="Print a stored checkpoint's note text: the bytes whose SHA-256 is logged in Sigsum.")
+    an_body.add_argument("size", type=int, help="Tree size of the batch (its directory name without zero padding).")
+    an_body.set_defaults(fn=cmd_anchor_body)
 
     return p
 
