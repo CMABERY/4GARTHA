@@ -4,7 +4,8 @@
 
 | Version | Supported |
 | ------- | --------- |
-| 0.1.x (`main`) | Yes |
+| 0.2.x (`main`) | Yes |
+| 0.1.x | No (v0 record format, removed; see CHANGELOG.md) |
 
 There are no releases yet. Fixes land on `main`.
 
@@ -27,7 +28,7 @@ must not. For example:
 - two different claims share a record ID, or a record's bytes can change without changing its ID
 - a record can make the verifier execute anything other than its policy-defined runtime, or a
   transform executes when replay was not requested or integrity did not pass
-- a workflow executes transform code, or a CI job obtains write permissions
+- a workflow invokes ledger derivation replay, or a CI job obtains write permissions
 - `ledger` commands write outside `ledger/` (for example through ref names) or overwrite stored
   objects or records
 
@@ -39,5 +40,6 @@ must not. For example:
   (ASSURANCE.md 5.4).
 - **No authenticity or governance assurance.** Admissions are unattested statements, and repository
   history is protected only by repository settings that are not yet enforced (ASSURANCE.md 5.6, 5.7).
-- Pull-request workflows run the PR's own code (tests and tools) with a read-only token. This is
-  inherent to running CI on pull requests.
+- CI does not invoke ledger derivation replay, but it is not a sandbox. Pull-request workflows run
+  the PR's own code (package build, tests, tools) with a read-only token, subject to GitHub Actions'
+  permissions and contributor approval policy. This is inherent to running CI on pull requests.

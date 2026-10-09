@@ -89,10 +89,16 @@ class Profile:
 
 @dataclass(frozen=True)
 class ProfileResult:
+    """Acceptance of a report under a profile. ``unrequired_failures`` lists
+    dimensions the profile does not require that are FAIL anyway: a satisfied
+    profile never hides a failed assurance (for example a matching replay that
+    ran without isolation)."""
+
     profile: str
     satisfied: bool
     error: bool  # a required dimension is ERROR (inconclusive, not refuted)
     unmet: Tuple[Tuple[Dimension, Status, FrozenSet[Status]], ...] = field(default=())
+    unrequired_failures: Tuple[Dimension, ...] = field(default=())
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -103,6 +109,7 @@ class ProfileResult:
                 {"dimension": d.value, "status": s.value, "accepted": sorted(a.value for a in acc)}
                 for d, s, acc in self.unmet
             ],
+            "unrequired_failures": [d.value for d in self.unrequired_failures],
         }
 
 
@@ -120,6 +127,9 @@ def evaluate(report: Report, profile: Profile) -> ProfileResult:
         satisfied=not unmet,
         error=any(st is Status.ERROR for _, st, _ in unmet),
         unmet=tuple(unmet),
+        unrequired_failures=tuple(
+            d for d in Dimension if d not in profile.requires and report.status(d) is Status.FAIL
+        ),
     )
 
 

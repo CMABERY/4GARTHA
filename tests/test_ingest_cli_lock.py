@@ -14,7 +14,7 @@ from ledger.assurance import PROFILES, evaluate
 from ledger.cas import CasPaths, sha256_bytes
 from ledger.locks import ingest_session_lock
 
-from ledger_testutil import PYTHON, admit, check, cli_env, concat_transform, init_repo, run_cli
+from ledger_testutil import PYTHON, admit, check, cli_env, concat_transform, derive, init_repo, run_cli
 
 
 def _start(root: Path, *args: str, env=None) -> subprocess.Popen:
@@ -145,3 +145,49 @@ def test_readmitting_the_same_claim_is_idempotent(tmp_path: Path) -> None:
     assert first.stdout == again.stdout != other.stdout
     assert "already present" in again.stderr
     assert len(list((root / "ledger" / "records").iterdir())) == 2
+
+
+@pytest.mark.parametrize("problem", ["missing-artifact", "corrupt-artifact", "corrupt-record", "broken-lineage"])
+def test_derive_requires_inputs_to_pass_integrity(tmp_path: Path, problem: str) -> None:
+    root = init_repo(tmp_path)
+    a = admit(root, b"hello")
+    target = a
+    obj = CasPaths.from_repo_root(root).object_path(sha256_bytes(b"hello"))
+    if problem == "missing-artifact":
+        obj.unlink()
+    elif problem == "corrupt-artifact":
+        obj.write_bytes(b"HELLO")
+    elif problem == "corrupt-record":
+        records.record_path(root, a).write_bytes(b"{}")
+    else:  # input record fine, but an ancestor beneath it is missing
+        mid = derive(root, b"hello", [a], concat_transform())
+        records.record_path(root, a).unlink()
+        target = mid
+    def stored() -> list:
+        return sorted(str(p.relative_to(root)) for d in ("objects", "records")
+                      for p in (root / "ledger" / d).rglob("*"))
+
+    before = stored()
+    (root / "out").write_bytes(b"hello!")
+    (root / "t.py").write_bytes(concat_transform())
+
+    proc = run_cli(root, "derive", "out", "--input", target, "--transform-file", "t.py",
+                   "--params-json", '{"suffix": "!"}')
+    assert proc.returncode != 0
+    assert "do not satisfy the integrity profile" in proc.stderr
+    assert "Traceback" not in proc.stderr
+    assert stored() == before  # no output, transform or record written
+
+
+def test_readmit_over_corrupt_existing_record_is_refused(tmp_path: Path) -> None:
+    root = init_repo(tmp_path)
+    (root / "input").write_bytes(b"data")
+    first = run_cli(root, "admit", "input", "--statement", "s")
+    assert first.returncode == 0
+    path = records.record_path(root, first.stdout.strip())
+    path.write_bytes(b'{"tampered":true}')
+
+    again = run_cli(root, "admit", "input", "--statement", "s")
+    assert again.returncode != 0
+    assert "is not valid" in again.stderr and "Traceback" not in again.stderr
+    assert path.read_bytes() == b'{"tampered":true}'  # never repaired silently

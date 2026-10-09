@@ -20,7 +20,7 @@ def test_ref_traversal_cannot_overwrite_immutable_record(tmp_path: Path) -> None
     manifest = record_path(root, node)
     before = manifest.read_bytes()
 
-    proc = run_cli(root, "refs", "set", f"../records/{node}.json", "0" * 64)
+    proc = run_cli(root, "refs", "set", f"../records/{node}.json", node)
     assert proc.returncode != 0
     assert "invalid ref name" in proc.stderr
     assert manifest.read_bytes() == before
@@ -32,17 +32,21 @@ def test_ref_traversal_cannot_overwrite_immutable_record(tmp_path: Path) -> None
 
 def test_absolute_ref_name_rejected(tmp_path: Path) -> None:
     root = init_repo(tmp_path / "repo")
+    node = admit(root, b"ref")
     outside = tmp_path / "outside.txt"
 
-    proc = run_cli(root, "refs", "set", str(outside), "0" * 64)
+    proc = run_cli(root, "refs", "set", str(outside), node)
     assert proc.returncode != 0
+    assert "invalid ref name" in proc.stderr
     assert not outside.exists()
 
 
 @pytest.mark.parametrize("name", ["", ".", "a/../../x"])
 def test_degenerate_ref_names_rejected(tmp_path: Path, name: str) -> None:
     root = init_repo(tmp_path)
-    assert run_cli(root, "refs", "set", name, "0" * 64).returncode != 0
+    node = admit(root, b"ref")
+    proc = run_cli(root, "refs", "set", name, node)
+    assert proc.returncode != 0 and "invalid ref name" in proc.stderr
 
 
 def test_symlink_escape_rejected(tmp_path: Path) -> None:
@@ -54,8 +58,10 @@ def test_symlink_escape_rejected(tmp_path: Path) -> None:
     except (OSError, NotImplementedError):
         pytest.skip("symlinks unavailable")
 
-    proc = run_cli(root, "refs", "set", "escape/latest", "0" * 64)
+    node = admit(root, b"ref")
+    proc = run_cli(root, "refs", "set", "escape/latest", node)
     assert proc.returncode != 0
+    assert "resolves outside ledger/refs" in proc.stderr
     assert not (outside / "latest").exists()
 
 
@@ -91,7 +97,7 @@ def test_symlinked_refs_root_cannot_overwrite_or_read_records(tmp_path: Path) ->
     manifest = record_path(root, node)
     before = manifest.read_bytes()
 
-    proc = run_cli(root, "refs", "set", f"{node}.json", "0" * 64)
+    proc = run_cli(root, "refs", "set", f"{node}.json", node)
     assert proc.returncode != 0
     assert "is a symlink" in proc.stderr
     assert manifest.read_bytes() == before
@@ -102,7 +108,7 @@ def test_symlinked_refs_root_cannot_overwrite_or_read_records(tmp_path: Path) ->
     assert got.stdout == ""
 
     fresh = run_cli(root, "refs", "set", "latest", node)
-    assert fresh.returncode != 0
+    assert fresh.returncode != 0 and "is a symlink" in fresh.stderr
     assert sorted(p.name for p in (root / "ledger" / "records").iterdir()) == [manifest.name]
 
 
@@ -113,8 +119,10 @@ def test_refs_root_symlink_to_outside_rejected(tmp_path: Path) -> None:
     (outside / "existing").write_text("keep\n")
     _symlink_dir(root / "ledger" / "refs", outside)
 
-    assert run_cli(root, "refs", "set", "latest", "0" * 64).returncode != 0
-    assert run_cli(root, "refs", "set", "existing", "0" * 64).returncode != 0
+    node = admit(root, b"ref")
+    for name in ("latest", "existing"):
+        proc = run_cli(root, "refs", "set", name, node)
+        assert proc.returncode != 0 and "is a symlink" in proc.stderr
     got = run_cli(root, "refs", "get", "existing")
     assert got.returncode != 0 and got.stdout == ""
     assert sorted(p.name for p in outside.iterdir()) == ["existing"]
@@ -130,7 +138,7 @@ def test_records_aliased_onto_refs_cannot_be_written_through_refs(tmp_path: Path
     manifest = record_path(root, node)
     before = manifest.read_bytes()
 
-    proc = run_cli(root, "refs", "set", f"{node}.json", "0" * 64)
+    proc = run_cli(root, "refs", "set", f"{node}.json", node)
     assert proc.returncode != 0
     assert "immutable ledger/records" in proc.stderr
     assert manifest.read_bytes() == before
@@ -155,4 +163,25 @@ def test_ref_value_must_be_a_record_id(tmp_path: Path, value: str) -> None:
     root = init_repo(tmp_path)
     proc = run_cli(root, "refs", "set", "latest", value)
     assert proc.returncode != 0 and "invalid record ID" in proc.stderr
+    assert not (root / "ledger" / "refs" / "latest").exists()
+
+
+@pytest.mark.parametrize("problem", ["missing-record", "corrupt-record", "missing-artifact"])
+def test_ref_target_must_exist_and_pass_integrity(tmp_path: Path, problem: str) -> None:
+    root = init_repo(tmp_path)
+    node = admit(root, b"target")
+    if problem == "missing-record":
+        target = "7" * 64
+    elif problem == "corrupt-record":
+        target = node
+        record_path(root, node).write_bytes(b"{}")
+    else:
+        target = node
+        for obj in (root / "ledger" / "objects").rglob("*"):
+            if obj.is_file():
+                obj.unlink()
+    proc = run_cli(root, "refs", "set", "latest", target)
+    assert proc.returncode != 0
+    assert "do not satisfy the integrity profile" in proc.stderr
+    assert "Traceback" not in proc.stderr
     assert not (root / "ledger" / "refs" / "latest").exists()

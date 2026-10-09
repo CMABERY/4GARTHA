@@ -18,7 +18,8 @@ Inputs reference record IDs, not artifact IDs, so a derivation's ID commits
 to the entire lineage beneath it, and any number of derivations (or
 admissions) of identical bytes coexist under distinct record IDs. Because an
 ID hashes the content that names its inputs, a cycle of valid records would
-require a SHA-256 preimage.
+require a SHA-256 preimage: computationally infeasible, not logically
+impossible, so the verifier still detects cycles (verifier._walk).
 
 Every field is identity-bearing; there is no non-semantic metadata. Record
 files hold exactly the canonical bytes, so the stored file is the hashed

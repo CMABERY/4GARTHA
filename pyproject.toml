@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "epistemic-ledger"
-version = "0.1.0"
+version = "0.2.0"
 description = "Content-addressed evidence and provenance ledger with explicitly scoped, testable assurance claims (see ASSURANCE.md) + Sprint-1 verifier fencepost."
 readme = "README.md"
 requires-python = ">=3.10"

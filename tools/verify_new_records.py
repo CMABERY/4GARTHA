@@ -1,9 +1,9 @@
 """Verify ledger records added in a diff range (CI gate).
 
 Default (CI): verify-only. Every new record and its entire lineage is checked
-against the `integrity` profile; NO TRANSFORM CODE IS EXECUTED. Derivation
-replay is disabled in CI until replay runs inside an enforced isolation
-boundary (ASSURANCE.md, "P0: no transform execution in CI").
+against the `integrity` profile; derivation replay is not invoked and this tool
+executes no transform code. CI does not invoke replay until replay runs inside
+an enforced isolation boundary (ASSURANCE.md section 7).
 
 --replay (local use only) additionally replays derivations and requires the
 `replay-if-derived` profile. It executes transform code without isolation.
@@ -100,8 +100,10 @@ def main(argv: list[str] | None = None) -> int:
         for prob in oc.problems:
             for line in prob.splitlines():
                 print(f"      {line}", file=stream)
+    for dim in result.unrequired_failures:
+        print(f"  note: {dim.value} is FAIL (not required by profile {profile.name})", file=stream)
     if not args.replay:
-        print("  (derivation replay is disabled here: no transform code was executed)", file=stream)
+        print("  (derivation replay was not invoked: no transform code was executed)", file=stream)
     if result.satisfied:
         return 0
     return 3 if result.error else 2

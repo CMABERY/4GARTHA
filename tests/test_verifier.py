@@ -183,3 +183,42 @@ def test_cli_exit_status_reflects_the_profile(tmp_path: Path) -> None:
     assert run_cli(root, "replay", bad).returncode == 2      # derivation refuted
     slow = derive(root, b"z", [a], b"import time\ntime.sleep(30)\n")
     assert run_cli(root, "verify", "--profile", "integrity", slow).returncode == 0
+
+
+def test_cycle_among_id_valid_records_is_reported_not_skipped(tmp_path: Path, monkeypatch) -> None:
+    # Unreachable without a SHA-256 preimage (a record's ID hashes its input
+    # IDs), so simulate it: make two stored records each name the other. The
+    # verifier must report the cycle rather than assume it cannot happen.
+    root = init_repo(tmp_path)
+    marker = tmp_path / "ran"
+    t = put_blob(root, marker_transform(marker, b"x"))
+    out = put_blob(root, b"x")
+    x, y = "1" * 64, "2" * 64
+    fake = {
+        x: records.derivation(out, [y], t, "python3", {}),
+        y: records.derivation(out, [x], t, "python3", {}),
+    }
+    real_load = records.load
+    monkeypatch.setattr(records, "load", lambda repo, rid: records.Loaded(rid, fake[rid], None, [])
+                        if rid in fake else real_load(repo, rid))
+
+    report = check(root, x, replay=True)
+    oc = report.outcomes[D.PROVENANCE_INTEGRITY]
+    assert oc.status is S.FAIL
+    assert any("cycle among ID-valid records" in p and f"{x} -> {y} -> {x}" in p for p in oc.problems), oc.problems
+    assert status(report, D.DERIVATION_VERIFICATION) is S.NOT_CHECKED
+    assert report.transforms_executed == 0 and not marker.exists()
+
+
+def test_package_exports_import_cleanly() -> None:
+    import importlib
+
+    import ledger
+
+    assert ledger.__version__ == "0.2.0"
+    for name in ledger.__all__:
+        importlib.import_module(f"ledger.{name}")
+    for gone in ("manifest", "verify", "replay"):
+        assert gone not in ledger.__all__
+        with pytest.raises(ModuleNotFoundError):
+            importlib.import_module(f"ledger.{gone}")

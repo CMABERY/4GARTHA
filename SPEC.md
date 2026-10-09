@@ -23,14 +23,30 @@ A record file contains exactly the record's canonical bytes: no trailing newline
 
 Implemented in `src/ledger/canonical.py`.
 
-- UTF-8, no byte-order mark.
-- Object keys sorted by code point; separators `,` and `:` with no whitespace; non-ASCII characters
-  written literally (never `\u` escapes, except where JSON requires them).
+- UTF-8, no byte-order mark, no whitespace outside strings, no trailing newline.
+- Object keys sorted by code point (keys are ASCII, so this equals byte order and UTF-16 order).
+  Separators are `,` and `:`.
+- String escaping is exactly:
+  - `"` → `\"` and `\` → `\\`
+  - U+0008, U+0009, U+000A, U+000C and U+000D → `\b`, `\t`, `\n`, `\f`, `\r`
+  - every other code point below U+0020 → `\u00XX`, with lowercase hex
+  - everything else (`/`, U+007F, U+2028, all non-ASCII including astral characters) is written
+    literally as UTF-8
+
+  Any other escape (`\/`, `\u0041`, `\u00e9`, `\u001F`, `\u000a`, surrogate pairs) is
+  non-canonical.
 - Permitted values: objects, arrays, strings, integers within ±(2⁵³−1), `true`, `false`, `null`.
 - **Rejected, never normalized:** floats (including `1.0`), NaN/Infinity, larger integers, strings
   that are not NFC-normalized, lone surrogates, non-ASCII object keys, duplicate keys, nesting
   deeper than 32.
 - A decoder accepts a file only if re-encoding its parsed value reproduces the file byte for byte.
+  That rules out every alternative spelling of the same value (escapes, `-0`, whitespace, key order).
+
+**These rules are frozen for `4gartha.record/1`.** They are pinned by language-neutral vectors in
+[`conformance/record-v1-vectors.json`](conformance/record-v1-vectors.json): bytes as hex, expected
+accept/reject, and record IDs with their canonical text. The tests in `tests/test_conformance.py`
+(C9) run every vector. An independent implementation must produce the same outcome for every vector.
+Changing any rule, even to accept something now rejected, is a new protocol with a new domain tag.
 
 Rationale: every one of the rejected cases would need a normalization policy, and any normalization
 lets two different inputs share an identity or one input acquire two.
@@ -77,8 +93,10 @@ any signature-like field, is rejected by the schema, so no v1 record can appear 
 
 - `inputs`: 1 to 1024 entries, ordered, duplicates permitted. Each entry names an input **record**,
   not an input artifact; its bytes are that record's `output.artifact`. The derivation's ID
-  therefore commits to the entire lineage beneath it. A cycle of valid records would require a
-  SHA-256 preimage.
+  therefore commits to the entire lineage beneath it.
+  - A cycle of valid records would require a SHA-256 preimage. That is computationally infeasible,
+    not logically impossible, so verifiers must still detect cycles and report them as failures.
+  - `ledger derive` refuses input records that do not satisfy the `integrity` profile.
 - `transform.runtime`: a name matching `[a-z0-9][a-z0-9._-]{0,63}`, never an argv. What a name
   means is decided by the verifier's replay policy, not by the record (ASSURANCE.md, Execution
   safety).
@@ -122,7 +140,9 @@ isolated mode (`sys.executable -I`). See `transforms/concat_parents.py`.
   under a valid ID. On filesystems without hard links this falls back to exclusive create, which is
   not crash-atomic; a partial file then fails verification rather than passing. An existing entry is never replaced; an entry that is not a valid copy
   of the record it is named for is reported, not repaired.
-- `ledger/refs/**` holds mutable names for record IDs. Refs are a convenience and carry no assurance.
+- `ledger/refs/**` holds mutable names for record IDs. Refs are a convenience: they carry no
+  assurance and are not historical evidence. `ledger refs set` only accepts a target record that
+  satisfies the `integrity` profile.
 - `ledger/nodes/` is the retired v0 manifest location (one manifest per *artifact*, which made a
   second derivation of the same bytes impossible). v0 was retired before any v0 node was committed.
   The directory stays empty and protected, and CI rejects additions to it.
@@ -131,4 +151,5 @@ isolated mode (`sys.executable -I`). See `transforms/concat_parents.py`.
 
 A change to identity semantics, canonical encoding or record kinds is a new protocol: new
 `protocol` string, new domain tag, new schema. Records of an earlier protocol are never
-reinterpreted under a later one.
+reinterpreted under a later one. Auditable annotations, if added, will be a new record kind that
+references the record it annotates. Mutable refs are not a substitute.

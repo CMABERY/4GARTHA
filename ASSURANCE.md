@@ -10,6 +10,16 @@ suite [`tests/test_conformance.py`](tests/test_conformance.py)
 **Engineering rule:** no claim without a named adversary, a defined verification procedure, and a
 reproducible acceptance condition.
 
+## Controlling statement (v1)
+
+> 4GARTHA v1 establishes artifact and provenance-record integrity through independently checkable,
+> cryptographically committed evidence. It distinguishes verified facts from declared claims,
+> unperformed checks, and external trust assumptions. No operation may report an assurance that its
+> implementation has not actually established.
+
+Everything below elaborates this statement. Where a section seems to promise more, the statement
+governs.
+
 This document is the engineering contract for what the verifier may report. Under
 [LAW-0001](LAW-0001_Names_NonNormative_Tests_Normative.md) the conformance tests, not this prose,
 are normative. A sentence here that no test backs is a defect in this document. It is not a
@@ -22,7 +32,7 @@ property of the system.
 | Artifact integrity | **Yes** | Hashing every referenced artifact | C8, `test_verifier.py`, `test_cas_existing_objects.py` |
 | Provenance integrity | **Yes** | Canonical, schema-valid records bound to their IDs; lineage complete | C3, C4, `test_records.py` |
 | Derivation verification | **Yes**, when replay is requested locally | Re-executing each derivation and comparing bytes | C1, C2, `test_verifier.py` |
-| Execution safety | **No.** FAIL whenever a transform runs | Nothing: no isolation boundary exists | C2, C8 |
+| Execution safety | **No.** FAIL whenever a transform runs; NOT_CHECKED otherwise | Nothing: no isolation boundary exists | C1, C2, C8 |
 | Reproducibility | **No.** NOT_CHECKED | Nothing: environments are declared, not enforced | C8 |
 | Authenticity | **No.** NOT_CHECKED | Nothing: the only admission basis is `unattested` | C5, C8 |
 | Governance | **No.** NOT_CHECKED | Nothing: no external anchoring exists | C6, C8 |
@@ -41,7 +51,7 @@ omits a dimension cannot be constructed (C8).
 | `PASS` | The procedure ran and the evidence supports the claim. |
 | `FAIL` | The procedure established that the claim does not hold, including when required evidence (a referenced record or artifact) is absent or contradicts its digest. |
 | `NOT_CHECKED` | No procedure ran: not requested, refused by policy, prevented by an earlier failure, or not implemented in this contract version. The detail says which. |
-| `NOT_APPLICABLE` | The record makes no such claim. Example: an admission has no derivation to replay. |
+| `NOT_APPLICABLE` | The record makes no such claim. Example: an admission has no derivation to replay. Never used for execution safety, which is a property of the verification run rather than of a record. |
 | `ERROR` | A procedure started but could not reach a conclusion (unreadable file, timeout, runtime would not start). |
 
 Rules:
@@ -51,7 +61,8 @@ Rules:
 - When one dimension aggregates many checks, the precedence is FAIL > ERROR > NOT_CHECKED > PASS.
 - No transform executes unless replay was explicitly requested, artifact and provenance integrity
   of the whole lineage are PASS, and the replay policy permits every runtime involved.
-- A status never decides acceptability on its own. Profiles do (section 3).
+- A status never decides acceptability on its own. Profiles do (section 3). The verifier reports
+  what it established; it does not adjust a status to suit a profile.
 
 ## 3. Profiles
 
@@ -70,6 +81,25 @@ are still reported.
 
 CLI exit status: `0` profile satisfied; `2` not satisfied; `3` a required dimension is ERROR
 (inconclusive rather than refuted). `--json` prints the machine-readable report and profile result.
+
+A satisfied profile never conceals a failure. If a dimension the profile does not require is FAIL,
+the profile result lists it under `unrequired_failures`, and the CLI prints a `note:` line. The
+standard case is a matching replay that ran without isolation (C2).
+
+Reference case: an unattested root verified the way CI verifies it (no replay). Pinned by C1.
+
+| Dimension | Status | Why |
+| --- | --- | --- |
+| Artifact integrity | PASS | the admitted artifact is present and matches |
+| Provenance integrity | PASS | the record is canonical, schema-valid and bound to its ID |
+| Derivation verification | NOT_APPLICABLE | an admission claims no derivation |
+| Execution safety | NOT_CHECKED | nothing ran, and no boundary was checked |
+| Reproducibility | NOT_APPLICABLE | an admission claims no derivation, so there is nothing to reproduce |
+| Authenticity | NOT_CHECKED | the basis is an unattested statement |
+| Governance | NOT_CHECKED | no external anchoring exists |
+
+`integrity` accepts this report. `replay`, `authenticated-admission`, `governed`, `isolated-replay`
+and `reproducible` do not.
 
 Replaying a root is the canonical case. `ledger replay <admission>` reports
 `derivation_verification NOT_APPLICABLE` and exits 2 under `replay`. Under
@@ -112,6 +142,10 @@ current state and the requirements for a later version follow where they apply.
   - NOT_CHECKED: the lineage is incomplete, so the set of referenced artifacts is unknown.
 - **Does not establish.** That the bytes are accurate, legitimate or meaningful.
 - **Write side.** `admit`/`derive` refuse to reuse a corrupt existing CAS entry and never overwrite one.
+  `derive` refuses any input record that does not satisfy the `integrity` profile (record, lineage
+  and artifacts), and `refs set` applies the same rule to its target. Writing an identical claim
+  again reuses its ID only after the stored copy has been checked: canonical, schema-valid and bound
+  to that ID. Otherwise the write is refused and the stored file is left untouched.
 
 ### 5.2 Provenance integrity
 
@@ -123,8 +157,9 @@ current state and the requirements for a later version follow where they apply.
 
   Inputs are named by record ID, so the target's ID commits to the whole lineage. Changing any
   field anywhere in it changes the target's ID (C4).
-- **Adversary.** A2, A3. A forger cannot alter a committed record without changing its ID, and
-  cannot construct a cycle.
+- **Adversary.** A2, A3. A forger cannot alter a committed record without changing its ID. Nor can
+  they feasibly construct a cycle: that would require a SHA-256 preimage. It is not logically
+  impossible, so the verifier still checks for cycles.
 - **Evidence.** Record files.
 - **Procedure.** For every record reachable from the target:
   1. Decode strictly.
@@ -133,9 +168,12 @@ current state and the requirements for a later version follow where they apply.
   4. Recompute the ID.
   5. Recurse into inputs (shared ancestors are checked once; the lineage is bounded at 100,000
      records).
+  6. Report any cycle as FAIL. A cycle among ID-valid records means the hash assumption has failed,
+     and the ledger should be treated as compromised.
 - **Results.**
   - PASS: every record is valid and present.
-  - FAIL: any record is missing, non-canonical, schema-invalid or stored under the wrong ID.
+  - FAIL: any record is missing, non-canonical, schema-invalid, stored under the wrong ID, or part
+    of a cycle.
   - ERROR: a record is unreadable, or the bound is exceeded.
 - **Does not establish.** That a claimed derivation happened (5.3), who made a claim (5.6), or that a
   record is the *only* claim about an artifact. Several claims about the same bytes coexist by design
@@ -172,7 +210,10 @@ current state and the requirements for a later version follow where they apply.
   reach the network, or exceed resource limits.
 - **Adversary.** A1/A3 supplying hostile transform code.
 - **v1 status.** No boundary exists. The verifier reports **FAIL** whenever it executed a transform,
-  because it knows the property does not hold, and NOT_APPLICABLE when nothing ran (C2, C8).
+  because it knows the property does not hold. When nothing ran it reports NOT_CHECKED, never
+  NOT_APPLICABLE, because no boundary was checked (C1, C2, C8). A replay that matches still
+  satisfies the `replay` profile, and the failed safety assurance is reported alongside it
+  (`unrequired_failures`), never hidden.
 - **What v1 does provide (policy, not a boundary; pinned by C2):**
   - A record names a runtime and can never supply argv.
   - The `restricted` policy defines one runtime: `python3` maps to the verifier's interpreter with
@@ -277,9 +318,12 @@ byte-level definition is in [SPEC.md](SPEC.md).
    hashes a claim, under a domain tag. Any number of claims can reference identical bytes, each
    under its own record ID (C3).
 2. **Derivations name input records, not input artifacts,** so a record ID commits to its entire
-   lineage, and cycles are infeasible rather than merely detected.
+   lineage. Cycles are computationally infeasible under SHA-256 preimage resistance, though not
+   logically impossible. The verifier still detects any cycle and reports it as FAIL.
 3. **Every field is identity-bearing.** There is no `meta` or display name, so "changing any field
-   changes the ID" is checked mechanically over every schema field (C4). Labels live in refs.
+   changes the ID" is checked mechanically over every schema field (C4). Labels live in refs, which
+   are mutable conveniences and not historical evidence. If auditable annotations are needed later,
+   they will be a separate record kind in a new protocol, referencing the record they annotate.
 4. **The record names a runtime, never a command** (C2).
 5. **One admission basis, `unattested`.** Bases the verifier cannot check are rejected, not accepted
    and ignored (C5).
@@ -287,7 +331,12 @@ byte-level definition is in [SPEC.md](SPEC.md).
    and so on).
 7. **v0 is retired.** The v0 node manifest (`ledger/nodes/<artifact ID>.json`, with unhashed
    manifests and one derivation per artifact forever) was removed before any v0 node existed. CI
-   rejects additions under `ledger/nodes/`.
+   rejects additions under `ledger/nodes/`. This is a breaking protocol change, released as
+   package 0.2.0 ([CHANGELOG.md](CHANGELOG.md)).
+8. **Canonicalization is frozen** for `4gartha.record/1`. Its exact rules, including escaping, are
+   pinned by language-neutral vectors in
+   [`conformance/record-v1-vectors.json`](conformance/record-v1-vectors.json) (C9). Changing any
+   rule is a new protocol with a new domain tag.
 
 ### 6.2 Evaluation of the `ingest_root_entropy.py` identifier
 
@@ -311,41 +360,49 @@ It remains a candidate input for a future attested admission basis. It would hav
 under the record canonicalization and domain tag, with the signature and key bound into the record.
 The pipeline itself is unchanged.
 
-## 7. CI posture (P0: no transform execution in CI)
+## 7. CI posture (P0)
 
-- **No workflow executes transform code.** `tools/verify_new_records.py` is verify-only (profile
-  `integrity`). Replay requires an explicit `--replay`, which no workflow passes. C7 asserts this
-  over every workflow file and checks the gate's behavior.
+**The claim, exactly:** CI does not invoke ledger derivation replay. CI execution remains subject to
+GitHub Actions' workflow permissions, contributor trust policies, and execution-environment
+protections.
+
+- **No replay.** `tools/verify_new_records.py` is verify-only (profile `integrity`). Replay requires
+  an explicit `--replay`, which no workflow passes. C7 asserts this over every workflow file and
+  checks that the gate executes nothing.
 - **Read-only token.** `ci.yml` declares top-level `permissions: contents: read`, and no job
   requests write (C7).
-- **What this does not cover:**
-  - `pull_request` workflows run PR-supplied code by design (tests, tools). The read-only token and
-    the absence of secrets are the mitigation.
-  - A PR can edit `ci.yml` and `tests/` themselves. C7 then runs inside that PR's own suite, so it
-    is a regression guard for honest changes, not a control against A1 or A4. The control is review
-    of `.github/` changes enforced by branch protection with required checks. That is a repository
-    setting, not configured (5.7).
-- **Owner actions recommended, not performed:**
-  - Set the default workflow permission to read.
-  - Protect `main` with the `Ledger Integrity` check required.
-  - Resolve commit signing before enabling `required_signatures`.
+- **Built-wheel job.** The `Built-wheel tests` job runs the full suite against the built, installed
+  wheel and checks the wheel's contents. The packaged verifier is what CI proves, not only an
+  editable checkout.
+- **What this does not cover.** Pull-request CI is not a sandbox. A PR's workflow run executes
+  contributor-controlled code: `pip install` builds the PR's package, and `pytest` runs the PR's
+  tests and tools. The mitigations are the read-only token, the absence of repository secrets, and
+  GitHub's fork-PR approval policy. A PR can also edit `ci.yml` and `tests/` themselves. C7 then
+  runs inside that PR's own suite, so it guards honest changes against regression. It is not a
+  control against A1 or A4. The control is review of `.github/` changes, enforced by branch
+  protection with required checks. That is a repository setting and is not configured (5.7).
+- **Owner actions recommended, not performed.** Repository settings are kept out of source PRs.
+  - Set the default workflow permission to read; other workflows rely on it.
+  - Protect `main` with the `Ledger Integrity` and `Built-wheel tests` checks required.
+  - Do not enforce signed commits until the contribution workflow produces them.
   - Consider requiring approval for all outside contributors' workflow runs.
 
 ## 8. Conformance index
 
 | ID | Establishes | Tests (`tests/test_conformance.py`) |
 | --- | --- | --- |
-| C1 | Root-node replay never reports that an unperformed derivation succeeded; unrequested replay is NOT_CHECKED; acceptability depends on the profile. | `test_C1_*` |
-| C2 | A record cannot select an arbitrary runner under the restricted policy, and the transform does not inherit the verifier's environment. Timeouts are ERROR, and execution is never reported as safe. | `test_C2_*` |
+| C1 | Root-node replay never reports that an unperformed derivation succeeded; unrequested replay is NOT_CHECKED; acceptability depends on the profile. The reference case (unattested root, integrity-only) produces exactly the table in section 3. | `test_C1_*` |
+| C2 | A record cannot select an arbitrary runner under the restricted policy, and the transform does not inherit the verifier's environment. Timeouts are ERROR. Execution is never reported as safe, and a satisfied `replay` profile still reports the failed safety assurance. | `test_C2_*` |
 | C3 | Different derivations (and admissions) of identical bytes have distinct record IDs; identical claims have the same ID. | `test_C3_*` |
 | C4 | Changing any identity-bearing field changes the record ID. The field list is derived from the schema, so a field added later without coverage fails. IDs are domain-separated. | `test_C4_*` |
 | C5 | An unattested admission cannot satisfy `authenticated-admission`; records claiming unverifiable authenticity are rejected. | `test_C5_*` |
 | C6 | Passing repository controls (append-only check, record gate) do not yield governance assurance without external evidence. | `test_C6_*` |
-| C7 | No workflow replays; the CI token is read-only; the CI record gate executes nothing. | `test_C7_*` |
+| C7 | No workflow invokes derivation replay; the CI token is read-only (top level, and no job grants write); the CI record gate executes nothing. | `test_C7_*` |
 | C8 | Every report covers all seven dimensions. Execution safety, reproducibility, authenticity and governance never PASS in v1. Broken or missing records fail rather than pass. | `test_C8_*` |
+| C9 | Canonical encoding and record IDs match the frozen, language-neutral vectors. These cover duplicate keys, floats and number forms, Unicode (NFC, surrogates, invalid UTF-8), escaping, key order, whitespace, BOM, depth, domain separation, and schema rejections. Each reject vector must fail for its stated reason, not merely fail. The vectors' record IDs were cross-checked outside Python (`jq -cS` and `sha256sum`). | `test_C9_*`, `conformance/record-v1-vectors.json` |
 
-The suite was checked against deliberately broken builds (16 planted defects, each planted
-separately). Every one made at least one conformance test fail:
+The suite was checked against deliberately broken builds, with each defect planted separately. Every
+one made at least one conformance test fail:
 
 - root replay reported PASS
 - any runtime permitted
@@ -357,6 +414,13 @@ separately). Every one made at least one conformance test fail:
 - `--replay`, a write token, or a job-level write grant in `ci.yml`
 - the gate replaying by default
 - unrequested replay reported PASS
+- canonicalization: floats accepted, NFC not enforced, duplicate keys accepted, non-ASCII escaped,
+  or the decoder's byte-for-byte round-trip check dropped
+- execution safety reported NOT_APPLICABLE when nothing ran
+- a satisfied profile hiding a failed dimension
+
+Planted-defect detection measures how sensitive the tests are. It is not a substitute for adversarial
+review.
 
 **What tests cannot establish:** that a sandbox exists, that repository settings are configured, or
 that a given CI result came from an unmodified workflow. Those assurances stay NOT_CHECKED or FAIL
@@ -366,9 +430,9 @@ until real controls exist, and the tests guarantee that the reports say so.
 
 | Priority | Item | Acceptance condition | State |
 | --- | --- | --- | --- |
-| P0 | No transform execution in CI | No untrusted transform can inherit CI privileges | Done: replay removed from CI; read-only token; C7 |
+| P0 | CI does not invoke derivation replay | No ledger transform runs in CI; CI jobs hold a read-only token | Done for the replay path (C7). PR CI still runs contributor code (section 7) |
 | P1 | This contract and its conformance suite | Every assurance has semantics, failure states and adversary assumptions | Done: sections 2–5, C1–C8 |
-| P1 | Artifact IDs separate from record IDs | Multiple derivations reference identical bytes without ambiguity | Done: `4gartha.record/1`, C3/C4 |
+| P1 | Artifact IDs separate from record IDs | Multiple derivations reference identical bytes without ambiguity | Done: `4gartha.record/1`, C3/C4/C9 |
 | P1 | Accurate README/CONTRIBUTING/SECURITY | No documentation claims a guarantee the implementation does not provide | Done (this revision) |
 | P2 | External governance anchoring | History independently checkable against an external commitment | Not started (5.7) |
 | P2 | Branch protection and signing policy | Required checks and signing work with the actual contribution workflow | Owner action (5.7, section 7) |

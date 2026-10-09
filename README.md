@@ -6,7 +6,8 @@
 
 **No claim without a named adversary, a defined verification procedure, and a reproducible
 acceptance condition.** The claims, their limits and their conformance tests are in
-[ASSURANCE.md](ASSURANCE.md). This README only summarizes them.
+[ASSURANCE.md](ASSURANCE.md), which opens with the controlling statement for v1. This README only
+summarizes them.
 
 This repo contains two pieces of infrastructure:
 
@@ -31,7 +32,7 @@ This repo contains two pieces of infrastructure:
 | --- | --- |
 | Artifact integrity, provenance integrity | Verified |
 | Derivation verification | Verified by local replay on request |
-| Execution safety | **Not provided.** Replay runs transform code without a sandbox |
+| Execution safety | **Not provided.** Replay runs transform code without a sandbox (FAIL when replay runs, NOT_CHECKED otherwise) |
 | Reproducibility, authenticity, governance | **Not provided.** Always reported NOT_CHECKED |
 
 Content addressing makes it infeasible to change a record or artifact without changing its ID, so
@@ -118,14 +119,19 @@ ledger verify <record ID> --replay --profile replay-if-derived
 ```
 
 Every report lists all seven assurances. Replaying an admission reports
-`derivation_verification NOT_APPLICABLE` and does not satisfy the `replay` profile. Exit status: 0
-satisfied, 2 not satisfied, 3 inconclusive.
+`derivation_verification NOT_APPLICABLE` and does not satisfy the `replay` profile. A satisfied
+profile still reports any failed dimension it does not require, for example
+`note: execution_safety is FAIL`. Exit status: 0 satisfied, 2 not satisfied, 3 inconclusive.
 
-Name a record:
+Name a record (the target must exist and pass the `integrity` profile; refs are mutable and are not
+evidence):
 
 ```bash
 ledger refs set latest <record ID>
 ```
+
+Upgrading from 0.1.x: the v0 `ingest` and `verify-reachable` commands and the `ledger/nodes/` format
+are gone. See [CHANGELOG.md](CHANGELOG.md).
 
 ## Governance: what is checked, and what is not enforced
 
@@ -134,7 +140,12 @@ CI (`.github/workflows/ci.yml`, read-only token) on pull requests and pushes to 
 - **Append-only check:** rejects modification, deletion, rename or copy under `ledger/objects/**`,
   `ledger/records/**` and `ledger/nodes/**`.
 - **Record gate:** applies the `integrity` profile to new records and their lineage, and rejects
-  malformed record paths and v0 node manifests. **CI never replays transforms.**
+  malformed record paths and v0 node manifests. **CI does not invoke ledger derivation replay.**
+- **Built-wheel tests:** the suite runs again against the installed wheel.
+
+CI is not a sandbox. Pull-request runs still execute contributor-controlled code (the package build,
+the tests and the tools), subject to GitHub Actions' permissions, contributor trust policies and
+execution-environment protections.
 
 These checks *detect*. They do not *prevent*: they run after a push lands, and anyone with write
 access controls both history and CI. `main` currently has no branch protection, and the one

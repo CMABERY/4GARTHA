@@ -49,6 +49,10 @@ class _Lineage:
     order: List[str] = field(default_factory=list)  # inputs before dependents
     loaded: Dict[str, records.Loaded] = field(default_factory=dict)
     truncated: bool = False
+    # Back edges between ID-valid records. Unreachable unless SHA-256 preimage
+    # resistance fails (a record's ID hashes the IDs of its inputs), but the
+    # verifier checks rather than assumes.
+    cycles: List[List[str]] = field(default_factory=list)
 
     @property
     def valid(self) -> Dict[str, dict]:
@@ -56,7 +60,8 @@ class _Lineage:
 
     @property
     def complete(self) -> bool:
-        return not self.truncated and all(l.record is not None for l in self.loaded.values())
+        return (not self.truncated and not self.cycles
+                and all(l.record is not None for l in self.loaded.values()))
 
 
 def _walk(repo_root: Path, targets: Iterable[str]) -> _Lineage:
@@ -86,8 +91,12 @@ def _walk(repo_root: Path, targets: Iterable[str]) -> _Lineage:
                     done.add(rid)
                     lin.order.append(rid)
                 continue
-            if nxt in done or nxt in seen_here:
-                continue  # shared ancestor (valid records cannot form cycles)
+            if nxt in done:
+                continue  # shared ancestor, already checked
+            if nxt in seen_here:  # seen but not done: it is on the stack
+                path = [r for r, _ in stack]
+                lin.cycles.append(path[path.index(nxt):] + [nxt])
+                continue
             seen_here.add(nxt)
             stack.append((nxt, enter(nxt)))
     return lin
@@ -143,6 +152,11 @@ def verify(
     p_err = [e for l in lin.loaded.values() if l.problem == "io" for e in l.errors]
     if lin.truncated:
         p_err.append(f"lineage exceeds {MAX_LINEAGE_RECORDS} records; verification stopped")
+    for cyc in lin.cycles:
+        p_fail.append(
+            "cycle among ID-valid records (implies a SHA-256 preimage; treat the ledger as "
+            "compromised): " + " -> ".join(cyc)
+        )
     o[Dimension.PROVENANCE_INTEGRITY] = _aggregate(
         p_fail, p_err, False,
         f"{len(valid)} record(s) canonical, schema-valid and bound to their IDs; every input record present",
@@ -184,6 +198,8 @@ def verify(
     executed = 0
     if not lin.complete and not derivations:
         dv = Outcome(Status.NOT_CHECKED, "lineage could not be established")
+    elif lin.cycles:
+        dv = Outcome(Status.NOT_CHECKED, "lineage contains a cycle; no transform was executed")
     elif not derivations:
         dv = Outcome(Status.NOT_APPLICABLE, "lineage contains only admission records; there is no derivation to verify")
     elif not replay:
@@ -243,7 +259,11 @@ def verify(
     if executed:
         o[Dimension.EXECUTION_SAFETY] = Outcome(Status.FAIL, f"{executed} transform(s) executed with {NO_ISOLATION}")
     else:
-        o[Dimension.EXECUTION_SAFETY] = Outcome(Status.NOT_APPLICABLE, "no transform was executed")
+        o[Dimension.EXECUTION_SAFETY] = Outcome(
+            Status.NOT_CHECKED,
+            "no transform was executed in this run, and no isolation boundary was checked "
+            "(execution safety is a property of a verification run, not a record claim)",
+        )
 
     # --- reproducibility --------------------------------------------------
     if lin.complete and not derivations:

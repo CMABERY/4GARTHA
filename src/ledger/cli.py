@@ -84,6 +84,19 @@ def _store_and_record(repo_root: Path, files: List[Path], build) -> str:
     return rid
 
 
+def _require_integrity(repo_root: Path, rids: List[str], what: str) -> None:
+    report = verify(repo_root, rids)
+    result = evaluate(report, PROFILES["integrity"])
+    if result.satisfied:
+        return
+    lines = [f"refused: {what}(s) {', '.join(rids)} do not satisfy the integrity profile:"]
+    for dim, st, _ in result.unmet:
+        oc = report.outcomes[dim]
+        lines.append(f"  {dim.value}: {st.value}: {oc.detail}")
+        lines.extend(f"    {p}" for p in oc.problems)
+    raise SystemExit("\n".join(lines))
+
+
 def cmd_admit(args: argparse.Namespace) -> int:
     repo_root = repo_root_from_cwd()
     src = _require_file(args.path, "file")
@@ -124,10 +137,10 @@ def cmd_derive(args: argparse.Namespace) -> int:
 
     files = [out, tf] + ([env] if env is not None else [])
     with _session(repo_root, args):
-        for rid in inputs:
-            l = records.load(repo_root, rid)
-            if l.problem is not None:
-                raise SystemExit("refused: input record is not valid: " + "; ".join(l.errors))
+        # Every input record, and its whole lineage, must pass the integrity
+        # profile before anything is written: no derivation is recorded on top
+        # of a missing, corrupt or incomplete input.
+        _require_integrity(repo_root, inputs, "input record")
 
         def build(d: List[str]) -> Dict[str, Any]:
             return records.derivation(d[0], inputs, d[1], args.runtime, params, d[2] if env is not None else None)
@@ -157,6 +170,8 @@ def print_report(report: Report, profile_name: str, as_json: bool) -> int:
                 for d, s, acc in result.unmet
             )
             print(f"profile {profile_name}: NOT SATISFIED: {unmet}")
+        for dim in result.unrequired_failures:
+            print(f"note: {dim.value} is FAIL (not required by profile {profile_name})")
     if result.satisfied:
         return 0
     return 3 if result.error else 2
@@ -208,6 +223,10 @@ def cmd_refs_set(args: argparse.Namespace) -> int:
     rid = args.id.strip()
     if not records.is_digest(rid):
         raise SystemExit(f"invalid record ID {args.id!r}: expected 64 lowercase hex chars")
+    # A ref may only name a record that exists and passes the integrity
+    # profile (record, lineage and artifacts). Refs remain mutable
+    # convenience names, not historical evidence.
+    _require_integrity(repo_root, [rid], "ref target record")
     refp.parent.mkdir(parents=True, exist_ok=True)
     refp.write_text(rid + "\n", encoding="utf-8")
     return 0
@@ -287,7 +306,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     p_rs = sub.add_parser("refs", help="Manage mutable convenience refs (names for record IDs).")
     rs = p_rs.add_subparsers(dest="refs_cmd", required=True)
-    rs_set = rs.add_parser("set", help="Point a ref at a record ID.")
+    rs_set = rs.add_parser("set", help="Point a ref at a record that exists and passes the integrity profile.")
     rs_set.add_argument("name")
     rs_set.add_argument("id")
     rs_set.set_defaults(fn=cmd_refs_set)

@@ -34,15 +34,21 @@ or `ledger/nodes/**`.
 1. `ledger admit <file> --statement "..."` for roots of evidence. The statement is recorded as an
    *unattested* basis: say where the bytes came from. It is a claim, not evidence.
 2. `ledger derive <output> --input <record ID> ... --transform-file <transform.py>` for
-   derivations. Inputs are record IDs, in order.
+   derivations. Inputs are record IDs, in order, and each must already pass the `integrity`
+   profile.
 3. `ledger verify <record ID>`, and if you trust the transform code, `ledger replay <record ID>`.
    Replay runs that code as your user without a sandbox.
 4. Optionally point a ref at the record (`ledger refs set <name> <record ID>`).
 5. Open a PR. CI will:
    - run the test suite, including the conformance suite
    - enforce the add-only rules
-   - check new records and their whole lineage against the `integrity` profile, **without executing
-     any transform** (derivation replay is disabled in CI until replay is isolated)
+   - check new records and their whole lineage against the `integrity` profile. CI does not invoke
+     ledger derivation replay until replay is isolated.
+   - run the suite again against the built wheel
+
+   CI is not a sandbox: your PR's tests, tools and package build run in it, with a read-only token.
 
 Reviewers: a passing record gate establishes integrity only. Read new transform code yourself. CI
-never runs it, and a replay that matches would not show the transform is honest (ASSURANCE.md 5.3).
+does not replay it, and a replay that matches would not show the transform is honest (ASSURANCE.md
+5.3). Review changes under `.github/` and `tests/` with the same care: a PR can change the checks
+that judge it.

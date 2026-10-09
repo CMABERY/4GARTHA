@@ -1,0 +1,919 @@
+{
+  "description": "Conformance vectors for 4gartha.record/1 canonical encoding and record identity (SPEC.md). Language-neutral: 'hex' is normative, 'note' is informative. These rules are frozen for 4gartha.record/1; any change is a new protocol with a new domain tag.",
+  "protocol": "4gartha.record/1",
+  "domain_tag_hex": "346761727468612e7265636f72642f3100",
+  "record_id": "sha256(domain_tag || canonical_bytes), lowercase hex",
+  "max_depth": 32,
+  "max_safe_integer": 9007199254740991,
+  "decode": [
+    {
+      "name": "minimal-object",
+      "expect": "accept",
+      "hex": "7b2261223a317d",
+      "note": ""
+    },
+    {
+      "name": "empty-object",
+      "expect": "accept",
+      "hex": "7b7d",
+      "note": ""
+    },
+    {
+      "name": "empty-key",
+      "expect": "accept",
+      "hex": "7b22223a317d",
+      "note": ""
+    },
+    {
+      "name": "all-scalar-types",
+      "expect": "accept",
+      "hex": "7b2261223a5b312c2d322c302c747275652c66616c73652c6e756c6c2c2278225d7d",
+      "note": ""
+    },
+    {
+      "name": "max-safe-integers",
+      "expect": "accept",
+      "hex": "7b2261223a393030373139393235343734303939312c2262223a2d393030373139393235343734303939317d",
+      "note": ""
+    },
+    {
+      "name": "literal-non-ascii",
+      "expect": "accept",
+      "hex": "7b2261223a22c3a9227d",
+      "note": "U+00E9 as UTF-8 C3 A9, never escaped"
+    },
+    {
+      "name": "literal-astral",
+      "expect": "accept",
+      "hex": "7b2261223a22f09f9880227d",
+      "note": "U+1F600 as 4-byte UTF-8, never a surrogate-pair escape"
+    },
+    {
+      "name": "short-escapes",
+      "expect": "accept",
+      "hex": "7b2261223a225c225c5c5c625c665c6e5c725c74227d",
+      "note": "quote, backslash, \\b \\f \\n \\r \\t use two-character escapes"
+    },
+    {
+      "name": "control-escapes-lowercase-hex",
+      "expect": "accept",
+      "hex": "7b2261223a225c75303030305c7530303166227d",
+      "note": "other C0 controls use \\u00XX with lowercase hex"
+    },
+    {
+      "name": "literal-del-and-u2028",
+      "expect": "accept",
+      "hex": "7b2261223a227fe280a8227d",
+      "note": "U+007F and U+2028 are written literally"
+    },
+    {
+      "name": "key-order-uppercase-first",
+      "expect": "accept",
+      "hex": "7b2242223a312c2261223a327d",
+      "note": "keys sort by code point (ASCII keys only)"
+    },
+    {
+      "name": "key-order-prefix-first",
+      "expect": "accept",
+      "hex": "7b2261223a312c226162223a327d",
+      "note": ""
+    },
+    {
+      "name": "depth-at-limit",
+      "expect": "accept",
+      "hex": "7b2261223a5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b315d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d7d",
+      "note": "object + 31 nested arrays: innermost value at depth 32"
+    },
+    {
+      "name": "duplicate-key",
+      "expect": "reject",
+      "reason": "duplicate-key",
+      "hex": "7b2261223a312c2261223a327d",
+      "note": ""
+    },
+    {
+      "name": "duplicate-key-via-escape",
+      "expect": "reject",
+      "reason": "duplicate-key",
+      "hex": "7b2261223a312c225c7530303631223a327d",
+      "note": "keys compared after unescaping"
+    },
+    {
+      "name": "whitespace-after-colon",
+      "expect": "reject",
+      "reason": "whitespace",
+      "hex": "7b2261223a20317d",
+      "note": ""
+    },
+    {
+      "name": "leading-whitespace",
+      "expect": "reject",
+      "reason": "whitespace",
+      "hex": "207b2261223a317d",
+      "note": ""
+    },
+    {
+      "name": "trailing-newline",
+      "expect": "reject",
+      "reason": "whitespace",
+      "hex": "7b2261223a317d0a",
+      "note": ""
+    },
+    {
+      "name": "key-order-descending",
+      "expect": "reject",
+      "reason": "key-order",
+      "hex": "7b2262223a312c2261223a327d",
+      "note": ""
+    },
+    {
+      "name": "key-order-case-insensitive",
+      "expect": "reject",
+      "reason": "key-order",
+      "hex": "7b2261223a322c2242223a317d",
+      "note": ""
+    },
+    {
+      "name": "byte-order-mark",
+      "expect": "reject",
+      "reason": "bom",
+      "hex": "efbbbf7b2261223a317d",
+      "note": ""
+    },
+    {
+      "name": "float-with-fraction",
+      "expect": "reject",
+      "reason": "float",
+      "hex": "7b2261223a312e357d",
+      "note": ""
+    },
+    {
+      "name": "float-integral",
+      "expect": "reject",
+      "reason": "float",
+      "hex": "7b2261223a312e307d",
+      "note": ""
+    },
+    {
+      "name": "float-exponent",
+      "expect": "reject",
+      "reason": "float",
+      "hex": "7b2261223a3165327d",
+      "note": ""
+    },
+    {
+      "name": "negative-zero",
+      "expect": "reject",
+      "reason": "negative-zero",
+      "hex": "7b2261223a2d307d",
+      "note": ""
+    },
+    {
+      "name": "nan",
+      "expect": "reject",
+      "reason": "nan",
+      "hex": "7b2261223a4e614e7d",
+      "note": ""
+    },
+    {
+      "name": "infinity",
+      "expect": "reject",
+      "reason": "nan",
+      "hex": "7b2261223a496e66696e6974797d",
+      "note": ""
+    },
+    {
+      "name": "integer-above-safe-range",
+      "expect": "reject",
+      "reason": "big-int",
+      "hex": "7b2261223a393030373139393235343734303939327d",
+      "note": ""
+    },
+    {
+      "name": "integer-below-safe-range",
+      "expect": "reject",
+      "reason": "big-int",
+      "hex": "7b2261223a2d393030373139393235343734303939327d",
+      "note": ""
+    },
+    {
+      "name": "escaped-non-ascii",
+      "expect": "reject",
+      "reason": "escape-form",
+      "hex": "7b2261223a225c7530306539227d",
+      "note": "non-ASCII must be literal"
+    },
+    {
+      "name": "escaped-ascii",
+      "expect": "reject",
+      "reason": "escape-form",
+      "hex": "7b2261223a225c7530303431227d",
+      "note": ""
+    },
+    {
+      "name": "escaped-solidus",
+      "expect": "reject",
+      "reason": "escape-form",
+      "hex": "7b2261223a225c2f227d",
+      "note": ""
+    },
+    {
+      "name": "long-form-of-short-escape",
+      "expect": "reject",
+      "reason": "escape-form",
+      "hex": "7b2261223a225c7530303061227d",
+      "note": ""
+    },
+    {
+      "name": "uppercase-hex-escape",
+      "expect": "reject",
+      "reason": "escape-form",
+      "hex": "7b2261223a225c7530303146227d",
+      "note": ""
+    },
+    {
+      "name": "raw-control-character",
+      "expect": "reject",
+      "reason": "not-json",
+      "hex": "7b2261223a220a227d",
+      "note": "unescaped U+000A inside a string"
+    },
+    {
+      "name": "non-nfc-string",
+      "expect": "reject",
+      "reason": "non-nfc",
+      "hex": "7b2261223a2265cc81227d",
+      "note": "e + U+0301 COMBINING ACUTE (NFD); NFC is U+00E9"
+    },
+    {
+      "name": "non-nfc-key",
+      "expect": "reject",
+      "reason": "non-ascii-key",
+      "hex": "7b2265cc81223a317d",
+      "note": ""
+    },
+    {
+      "name": "non-ascii-key",
+      "expect": "reject",
+      "reason": "non-ascii-key",
+      "hex": "7b22c3a9223a317d",
+      "note": ""
+    },
+    {
+      "name": "lone-surrogate-escape",
+      "expect": "reject",
+      "reason": "surrogate",
+      "hex": "7b2261223a225c7564383030227d",
+      "note": ""
+    },
+    {
+      "name": "invalid-utf8",
+      "expect": "reject",
+      "reason": "non-utf8",
+      "hex": "7b2261223a22ff227d",
+      "note": ""
+    },
+    {
+      "name": "overlong-utf8",
+      "expect": "reject",
+      "reason": "non-utf8",
+      "hex": "7b2261223a22c0af227d",
+      "note": ""
+    },
+    {
+      "name": "utf8-encoded-surrogate",
+      "expect": "reject",
+      "reason": "non-utf8",
+      "hex": "7b2261223a22eda080227d",
+      "note": ""
+    },
+    {
+      "name": "depth-over-limit",
+      "expect": "reject",
+      "reason": "depth",
+      "hex": "7b2261223a5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b315d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d7d",
+      "note": "one level deeper than depth-at-limit"
+    },
+    {
+      "name": "truncated",
+      "expect": "reject",
+      "reason": "not-json",
+      "hex": "7b2261223a31",
+      "note": ""
+    },
+    {
+      "name": "trailing-data",
+      "expect": "reject",
+      "reason": "not-json",
+      "hex": "7b2261223a317d7b7d",
+      "note": ""
+    }
+  ],
+  "encode_reject": [
+    {
+      "name": "float",
+      "value": {
+        "a": 1.5
+      },
+      "reason": "float"
+    },
+    {
+      "name": "integer-above-safe-range",
+      "value": {
+        "a": 9007199254740992
+      },
+      "reason": "big-int"
+    },
+    {
+      "name": "non-nfc-string",
+      "value": {
+        "a": "e\u0301"
+      },
+      "reason": "non-nfc"
+    },
+    {
+      "name": "non-ascii-key",
+      "value": {
+        "\u00e9": 1
+      },
+      "reason": "non-ascii-key"
+    },
+    {
+      "name": "depth-over-limit",
+      "value": {
+        "a": [
+          [
+            [
+              [
+                [
+                  [
+                    [
+                      [
+                        [
+                          [
+                            [
+                              [
+                                [
+                                  [
+                                    [
+                                      [
+                                        [
+                                          [
+                                            [
+                                              [
+                                                [
+                                                  [
+                                                    [
+                                                      [
+                                                        [
+                                                          [
+                                                            [
+                                                              [
+                                                                [
+                                                                  [
+                                                                    [
+                                                                      [
+                                                                        1
+                                                                      ]
+                                                                    ]
+                                                                  ]
+                                                                ]
+                                                              ]
+                                                            ]
+                                                          ]
+                                                        ]
+                                                      ]
+                                                    ]
+                                                  ]
+                                                ]
+                                              ]
+                                            ]
+                                          ]
+                                        ]
+                                      ]
+                                    ]
+                                  ]
+                                ]
+                              ]
+                            ]
+                          ]
+                        ]
+                      ]
+                    ]
+                  ]
+                ]
+              ]
+            ]
+          ]
+        ]
+      },
+      "reason": "depth"
+    }
+  ],
+  "record_ids": [
+    {
+      "name": "admission-ascii",
+      "record": {
+        "protocol": "4gartha.record/1",
+        "kind": "admission",
+        "output": {
+          "artifact": "abababababababababababababababababababababababababababababababab"
+        },
+        "basis": {
+          "kind": "unattested",
+          "statement": "exported from instrument X on 2026-10-01"
+        }
+      },
+      "canonical_utf8": "{\"basis\":{\"kind\":\"unattested\",\"statement\":\"exported from instrument X on 2026-10-01\"},\"kind\":\"admission\",\"output\":{\"artifact\":\"abababababababababababababababababababababababababababababababab\"},\"protocol\":\"4gartha.record/1\"}",
+      "record_id": "fd5de362019e9796c5bd92b3d3b2e47076ddf1a2e121f4bf325326e8b2f2b9e4",
+      "plain_sha256_of_canonical": "6409c9b996c928b5b29ceabf2b03c6fd0bb9a10e2294ff259a7bc9d41a14d3b0"
+    },
+    {
+      "name": "admission-non-ascii",
+      "record": {
+        "protocol": "4gartha.record/1",
+        "kind": "admission",
+        "output": {
+          "artifact": "cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd"
+        },
+        "basis": {
+          "kind": "unattested",
+          "statement": "Messung von Ger\u00e4t \u00c4 \u2014 Probe \u00b5-7"
+        }
+      },
+      "canonical_utf8": "{\"basis\":{\"kind\":\"unattested\",\"statement\":\"Messung von Ger\u00e4t \u00c4 \u2014 Probe \u00b5-7\"},\"kind\":\"admission\",\"output\":{\"artifact\":\"cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd\"},\"protocol\":\"4gartha.record/1\"}",
+      "record_id": "dfc066713f70852ffdf5fcb871b53bafd92eb1bef40b5b5153db20ffdb57b50f",
+      "plain_sha256_of_canonical": "5cf4bc60edaa02cd51a6f26f5eabda2af853f1cc30591fa8f0e14a724ba80c82"
+    },
+    {
+      "name": "derivation-with-environment",
+      "record": {
+        "protocol": "4gartha.record/1",
+        "kind": "derivation",
+        "output": {
+          "artifact": "efefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefef"
+        },
+        "inputs": [
+          {
+            "record": "fd5de362019e9796c5bd92b3d3b2e47076ddf1a2e121f4bf325326e8b2f2b9e4"
+          },
+          {
+            "record": "dfc066713f70852ffdf5fcb871b53bafd92eb1bef40b5b5153db20ffdb57b50f"
+          }
+        ],
+        "transform": {
+          "artifact": "2323232323232323232323232323232323232323232323232323232323232323",
+          "runtime": "python3",
+          "params": {
+            "suffix": "!",
+            "n": -3,
+            "nested": {
+              "z": [
+                1,
+                "\u00e9"
+              ],
+              "a": null
+            }
+          }
+        },
+        "environment": {
+          "artifact": "0101010101010101010101010101010101010101010101010101010101010101"
+        }
+      },
+      "canonical_utf8": "{\"environment\":{\"artifact\":\"0101010101010101010101010101010101010101010101010101010101010101\"},\"inputs\":[{\"record\":\"fd5de362019e9796c5bd92b3d3b2e47076ddf1a2e121f4bf325326e8b2f2b9e4\"},{\"record\":\"dfc066713f70852ffdf5fcb871b53bafd92eb1bef40b5b5153db20ffdb57b50f\"}],\"kind\":\"derivation\",\"output\":{\"artifact\":\"efefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefef\"},\"protocol\":\"4gartha.record/1\",\"transform\":{\"artifact\":\"2323232323232323232323232323232323232323232323232323232323232323\",\"params\":{\"n\":-3,\"nested\":{\"a\":null,\"z\":[1,\"\u00e9\"]},\"suffix\":\"!\"},\"runtime\":\"python3\"}}",
+      "record_id": "5ac8327e08028ca46c3dcc2329b58608c3a8bf0d3920b76c1d8f9e4f7f7ea04f",
+      "plain_sha256_of_canonical": "3815848cf812dc005534c49a6fd1ffa4d2162617632a776918dcffa61d83453d"
+    },
+    {
+      "name": "derivation-duplicate-inputs-no-environment",
+      "record": {
+        "protocol": "4gartha.record/1",
+        "kind": "derivation",
+        "output": {
+          "artifact": "efefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefef"
+        },
+        "inputs": [
+          {
+            "record": "fd5de362019e9796c5bd92b3d3b2e47076ddf1a2e121f4bf325326e8b2f2b9e4"
+          },
+          {
+            "record": "fd5de362019e9796c5bd92b3d3b2e47076ddf1a2e121f4bf325326e8b2f2b9e4"
+          }
+        ],
+        "transform": {
+          "artifact": "2323232323232323232323232323232323232323232323232323232323232323",
+          "runtime": "python3",
+          "params": {}
+        },
+        "environment": null
+      },
+      "canonical_utf8": "{\"environment\":null,\"inputs\":[{\"record\":\"fd5de362019e9796c5bd92b3d3b2e47076ddf1a2e121f4bf325326e8b2f2b9e4\"},{\"record\":\"fd5de362019e9796c5bd92b3d3b2e47076ddf1a2e121f4bf325326e8b2f2b9e4\"}],\"kind\":\"derivation\",\"output\":{\"artifact\":\"efefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefef\"},\"protocol\":\"4gartha.record/1\",\"transform\":{\"artifact\":\"2323232323232323232323232323232323232323232323232323232323232323\",\"params\":{},\"runtime\":\"python3\"}}",
+      "record_id": "14ca21afbdddd7bef2e77f74032d253f3802cbec36bec60e2d4dd40cfd95a6e5",
+      "plain_sha256_of_canonical": "5da31055882e9053036ff93583cd3b0cf8f5924287e417d1b814bea14ff1d468"
+    }
+  ],
+  "record_reject": [
+    {
+      "name": "transform-runner-argv",
+      "record": {
+        "protocol": "4gartha.record/1",
+        "kind": "derivation",
+        "output": {
+          "artifact": "efefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefef"
+        },
+        "inputs": [
+          {
+            "record": "fd5de362019e9796c5bd92b3d3b2e47076ddf1a2e121f4bf325326e8b2f2b9e4"
+          }
+        ],
+        "transform": {
+          "artifact": "2323232323232323232323232323232323232323232323232323232323232323",
+          "runtime": "python3",
+          "params": {},
+          "runner": [
+            "sh",
+            "-c",
+            "id"
+          ]
+        },
+        "environment": null
+      },
+      "reason": "argv"
+    },
+    {
+      "name": "runtime-with-argument",
+      "record": {
+        "protocol": "4gartha.record/1",
+        "kind": "derivation",
+        "output": {
+          "artifact": "efefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefef"
+        },
+        "inputs": [
+          {
+            "record": "fd5de362019e9796c5bd92b3d3b2e47076ddf1a2e121f4bf325326e8b2f2b9e4"
+          }
+        ],
+        "transform": {
+          "artifact": "2323232323232323232323232323232323232323232323232323232323232323",
+          "runtime": "python3 -c",
+          "params": {}
+        },
+        "environment": null
+      },
+      "reason": "argv"
+    },
+    {
+      "name": "runtime-path",
+      "record": {
+        "protocol": "4gartha.record/1",
+        "kind": "derivation",
+        "output": {
+          "artifact": "efefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefef"
+        },
+        "inputs": [
+          {
+            "record": "fd5de362019e9796c5bd92b3d3b2e47076ddf1a2e121f4bf325326e8b2f2b9e4"
+          }
+        ],
+        "transform": {
+          "artifact": "2323232323232323232323232323232323232323232323232323232323232323",
+          "runtime": "/usr/bin/python3",
+          "params": {}
+        },
+        "environment": null
+      },
+      "reason": "argv"
+    },
+    {
+      "name": "runtime-trailing-newline",
+      "record": {
+        "protocol": "4gartha.record/1",
+        "kind": "derivation",
+        "output": {
+          "artifact": "efefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefef"
+        },
+        "inputs": [
+          {
+            "record": "fd5de362019e9796c5bd92b3d3b2e47076ddf1a2e121f4bf325326e8b2f2b9e4"
+          }
+        ],
+        "transform": {
+          "artifact": "2323232323232323232323232323232323232323232323232323232323232323",
+          "runtime": "python3\n",
+          "params": {}
+        },
+        "environment": null
+      },
+      "reason": "argv"
+    },
+    {
+      "name": "signature-basis-kind",
+      "record": {
+        "protocol": "4gartha.record/1",
+        "kind": "admission",
+        "output": {
+          "artifact": "abababababababababababababababababababababababababababababababab"
+        },
+        "basis": {
+          "kind": "signature",
+          "statement": "s"
+        }
+      },
+      "reason": "authenticity"
+    },
+    {
+      "name": "signature-field-in-basis",
+      "record": {
+        "protocol": "4gartha.record/1",
+        "kind": "admission",
+        "output": {
+          "artifact": "abababababababababababababababababababababababababababababababab"
+        },
+        "basis": {
+          "kind": "unattested",
+          "statement": "s",
+          "signature": "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+        }
+      },
+      "reason": "authenticity"
+    },
+    {
+      "name": "empty-statement",
+      "record": {
+        "protocol": "4gartha.record/1",
+        "kind": "admission",
+        "output": {
+          "artifact": "abababababababababababababababababababababababababababababababab"
+        },
+        "basis": {
+          "kind": "unattested",
+          "statement": ""
+        }
+      },
+      "reason": "shape"
+    },
+    {
+      "name": "meta-field",
+      "record": {
+        "protocol": "4gartha.record/1",
+        "kind": "derivation",
+        "output": {
+          "artifact": "efefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefef"
+        },
+        "inputs": [
+          {
+            "record": "fd5de362019e9796c5bd92b3d3b2e47076ddf1a2e121f4bf325326e8b2f2b9e4"
+          }
+        ],
+        "transform": {
+          "artifact": "2323232323232323232323232323232323232323232323232323232323232323",
+          "runtime": "python3",
+          "params": {}
+        },
+        "environment": null,
+        "meta": {
+          "note": "x"
+        }
+      },
+      "reason": "non-semantic"
+    },
+    {
+      "name": "transform-display-name",
+      "record": {
+        "protocol": "4gartha.record/1",
+        "kind": "derivation",
+        "output": {
+          "artifact": "efefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefef"
+        },
+        "inputs": [
+          {
+            "record": "fd5de362019e9796c5bd92b3d3b2e47076ddf1a2e121f4bf325326e8b2f2b9e4"
+          }
+        ],
+        "transform": {
+          "artifact": "2323232323232323232323232323232323232323232323232323232323232323",
+          "runtime": "python3",
+          "params": {},
+          "name": "concat"
+        },
+        "environment": null
+      },
+      "reason": "non-semantic"
+    },
+    {
+      "name": "no-inputs",
+      "record": {
+        "protocol": "4gartha.record/1",
+        "kind": "derivation",
+        "output": {
+          "artifact": "efefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefef"
+        },
+        "inputs": [],
+        "transform": {
+          "artifact": "2323232323232323232323232323232323232323232323232323232323232323",
+          "runtime": "python3",
+          "params": {}
+        },
+        "environment": null
+      },
+      "reason": "shape"
+    },
+    {
+      "name": "bare-input-id",
+      "record": {
+        "protocol": "4gartha.record/1",
+        "kind": "derivation",
+        "output": {
+          "artifact": "efefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefef"
+        },
+        "inputs": [
+          "fd5de362019e9796c5bd92b3d3b2e47076ddf1a2e121f4bf325326e8b2f2b9e4"
+        ],
+        "transform": {
+          "artifact": "2323232323232323232323232323232323232323232323232323232323232323",
+          "runtime": "python3",
+          "params": {}
+        },
+        "environment": null
+      },
+      "reason": "shape"
+    },
+    {
+      "name": "input-by-artifact-field",
+      "record": {
+        "protocol": "4gartha.record/1",
+        "kind": "derivation",
+        "output": {
+          "artifact": "efefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefef"
+        },
+        "inputs": [
+          {
+            "artifact": "abababababababababababababababababababababababababababababababab"
+          }
+        ],
+        "transform": {
+          "artifact": "2323232323232323232323232323232323232323232323232323232323232323",
+          "runtime": "python3",
+          "params": {}
+        },
+        "environment": null
+      },
+      "reason": "shape"
+    },
+    {
+      "name": "environment-omitted",
+      "record": {
+        "protocol": "4gartha.record/1",
+        "kind": "derivation",
+        "output": {
+          "artifact": "efefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefef"
+        },
+        "inputs": [
+          {
+            "record": "fd5de362019e9796c5bd92b3d3b2e47076ddf1a2e121f4bf325326e8b2f2b9e4"
+          }
+        ],
+        "transform": {
+          "artifact": "2323232323232323232323232323232323232323232323232323232323232323",
+          "runtime": "python3",
+          "params": {}
+        }
+      },
+      "reason": "shape"
+    },
+    {
+      "name": "digest-trailing-newline",
+      "record": {
+        "protocol": "4gartha.record/1",
+        "kind": "derivation",
+        "output": {
+          "artifact": "efefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefef\n"
+        },
+        "inputs": [
+          {
+            "record": "fd5de362019e9796c5bd92b3d3b2e47076ddf1a2e121f4bf325326e8b2f2b9e4"
+          }
+        ],
+        "transform": {
+          "artifact": "2323232323232323232323232323232323232323232323232323232323232323",
+          "runtime": "python3",
+          "params": {}
+        },
+        "environment": null
+      },
+      "reason": "digest"
+    },
+    {
+      "name": "digest-uppercase",
+      "record": {
+        "protocol": "4gartha.record/1",
+        "kind": "derivation",
+        "output": {
+          "artifact": "EFEFEFEFEFEFEFEFEFEFEFEFEFEFEFEFEFEFEFEFEFEFEFEFEFEFEFEFEFEFEFEF"
+        },
+        "inputs": [
+          {
+            "record": "fd5de362019e9796c5bd92b3d3b2e47076ddf1a2e121f4bf325326e8b2f2b9e4"
+          }
+        ],
+        "transform": {
+          "artifact": "2323232323232323232323232323232323232323232323232323232323232323",
+          "runtime": "python3",
+          "params": {}
+        },
+        "environment": null
+      },
+      "reason": "digest"
+    },
+    {
+      "name": "digest-prefixed",
+      "record": {
+        "protocol": "4gartha.record/1",
+        "kind": "derivation",
+        "output": {
+          "artifact": "sha256:efefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefef"
+        },
+        "inputs": [
+          {
+            "record": "fd5de362019e9796c5bd92b3d3b2e47076ddf1a2e121f4bf325326e8b2f2b9e4"
+          }
+        ],
+        "transform": {
+          "artifact": "2323232323232323232323232323232323232323232323232323232323232323",
+          "runtime": "python3",
+          "params": {}
+        },
+        "environment": null
+      },
+      "reason": "digest"
+    },
+    {
+      "name": "other-protocol",
+      "record": {
+        "protocol": "4gartha.record/2",
+        "kind": "derivation",
+        "output": {
+          "artifact": "efefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefef"
+        },
+        "inputs": [
+          {
+            "record": "fd5de362019e9796c5bd92b3d3b2e47076ddf1a2e121f4bf325326e8b2f2b9e4"
+          }
+        ],
+        "transform": {
+          "artifact": "2323232323232323232323232323232323232323232323232323232323232323",
+          "runtime": "python3",
+          "params": {}
+        },
+        "environment": null
+      },
+      "reason": "shape"
+    },
+    {
+      "name": "unknown-kind",
+      "record": {
+        "protocol": "4gartha.record/1",
+        "kind": "annotation",
+        "output": {
+          "artifact": "efefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefef"
+        },
+        "inputs": [
+          {
+            "record": "fd5de362019e9796c5bd92b3d3b2e47076ddf1a2e121f4bf325326e8b2f2b9e4"
+          }
+        ],
+        "transform": {
+          "artifact": "2323232323232323232323232323232323232323232323232323232323232323",
+          "runtime": "python3",
+          "params": {}
+        },
+        "environment": null
+      },
+      "reason": "shape"
+    },
+    {
+      "name": "float-param",
+      "record": {
+        "protocol": "4gartha.record/1",
+        "kind": "derivation",
+        "output": {
+          "artifact": "efefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefef"
+        },
+        "inputs": [
+          {
+            "record": "fd5de362019e9796c5bd92b3d3b2e47076ddf1a2e121f4bf325326e8b2f2b9e4"
+          }
+        ],
+        "transform": {
+          "artifact": "2323232323232323232323232323232323232323232323232323232323232323",
+          "runtime": "python3",
+          "params": {
+            "x": 0.5
+          }
+        },
+        "environment": null
+      },
+      "reason": "canonical"
+    }
+  ]
+}

@@ -6,9 +6,10 @@ on:
     branches: [ main ]
   workflow_dispatch:
 
-# Least privilege for every job: this workflow runs code from pull requests
-# (tests, tools), so its token must not be able to write to the repository.
-# ASSURANCE.md, "P0: no transform execution in CI".
+# Least privilege for every job. CI does not invoke ledger derivation replay,
+# but it does run contributor-controlled code on pull requests (pip install of
+# the PR's package, its tests and tools), so the token must not be able to
+# write to the repository. ASSURANCE.md section 7.
 permissions:
   contents: read
 
@@ -51,18 +52,60 @@ jobs:
         run: |
           python tools/check_append_only.py $LEDGER_DIFF_ARGS "$LEDGER_DIFF_BASE"
 
-      - name: Verify newly added records (integrity profile; no transform execution)
+      - name: Verify newly added records (integrity profile; replay not invoked)
         # Checks every new record and its whole lineage: canonical bytes, schema,
         # record-ID binding, input records present, artifacts present and
         # matching their digests. Rejects legacy v0 ledger/nodes/ manifests.
-        # Derivation replay is DISABLED in CI until replay runs inside an
-        # enforced isolation boundary; derivation_verification is reported
-        # NOT_CHECKED. Do not add --replay here (tests/test_conformance.py).
+        # CI does not invoke ledger derivation replay until replay runs inside
+        # an enforced isolation boundary; derivation_verification is reported
+        # NOT_CHECKED. Do not add --replay here (tests/test_conformance.py, C7).
         env:
           LEDGER_DIFF_BASE: ${{ steps.diffbase.outputs.base }}
           LEDGER_DIFF_ARGS: ${{ steps.diffbase.outputs.diff_args }}
         run: |
           python tools/verify_new_records.py $LEDGER_DIFF_ARGS "$LEDGER_DIFF_BASE"
+
+  wheel:
+    name: Built-wheel tests
+    # The suite again, against the built and installed wheel rather than an
+    # editable checkout: proves the packaged verifier (and its packaged record
+    # schema) is what passes, and that no removed v0 module ships.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Build wheel
+        run: |
+          python -m pip install --upgrade pip
+          pip wheel --no-deps -w dist .
+
+      - name: Install wheel into a clean environment
+        run: |
+          python -m venv "$RUNNER_TEMP/wheelenv"
+          "$RUNNER_TEMP/wheelenv/bin/pip" install -r requirements.lock
+          "$RUNNER_TEMP/wheelenv/bin/pip" install --no-deps dist/*.whl
+
+      - name: Check wheel contents
+        run: |
+          "$RUNNER_TEMP/wheelenv/bin/python" - dist/*.whl <<'PY'
+          import sys, zipfile
+          names = set(zipfile.ZipFile(sys.argv[1]).namelist())
+          assert "ledger/record.schema.json" in names, sorted(names)
+          for gone in ("ledger/manifest.py", "ledger/verify.py", "ledger/replay.py", "ledger/node.schema.json"):
+              assert gone not in names, gone
+          print("wheel contents OK:", len(names), "entries")
+          PY
+
+      - name: Unit tests against the installed wheel
+        run: |
+          "$RUNNER_TEMP/wheelenv/bin/python" -c "import ledger, sys; print(ledger.__version__, ledger.__file__); sys.exit('site-packages' not in ledger.__file__)"
+          "$RUNNER_TEMP/wheelenv/bin/python" -m pytest -q
 
   sprint1:
     name: Sprint-1 Frozen Gate

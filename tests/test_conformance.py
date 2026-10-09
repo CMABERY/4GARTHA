@@ -66,7 +66,10 @@ def test_C1_root_replay_is_not_applicable_not_success(tmp_path: Path) -> None:
     report = check(root, rid, replay=True)
     assert status(report, D.DERIVATION_VERIFICATION) is S.NOT_APPLICABLE
     assert report.transforms_executed == 0
-    assert status(report, D.EXECUTION_SAFETY) is S.NOT_APPLICABLE
+    # Execution safety is a property of the run, not a record claim: nothing
+    # ran and no boundary was checked, so NOT_CHECKED (never NOT_APPLICABLE,
+    # which a profile could accept without any sandbox existing).
+    assert status(report, D.EXECUTION_SAFETY) is S.NOT_CHECKED
     # Acceptability is profile-dependent, never implied by the status itself.
     assert not evaluate(report, PROFILES["replay"]).satisfied
     assert evaluate(report, PROFILES["replay-if-derived"]).satisfied
@@ -90,6 +93,26 @@ def test_C1_cli_replay_of_root_names_the_status_and_fails_the_profile(tmp_path: 
     lenient = run_cli(root, "verify", rid, "--replay", "--profile", "replay-if-derived")
     assert lenient.returncode == 0, lenient.stdout
     assert _cli_status(lenient.stdout, D.DERIVATION_VERIFICATION) == "NOT_APPLICABLE"
+
+
+def test_C1_unattested_root_under_ci_integrity_profile(tmp_path: Path) -> None:
+    """The review's reference case: an unattested root verified integrity-only.
+    The verifier reports what it established; the profile decides acceptance."""
+    root = init_repo(tmp_path)
+    rid = admit(root, b"root evidence", statement="exported from instrument X")
+    report = check(root, rid)  # what CI does: no replay
+    assert {d: status(report, d) for d in Dimension} == {
+        D.ARTIFACT_INTEGRITY: S.PASS,
+        D.PROVENANCE_INTEGRITY: S.PASS,
+        D.DERIVATION_VERIFICATION: S.NOT_APPLICABLE,
+        D.EXECUTION_SAFETY: S.NOT_CHECKED,
+        D.REPRODUCIBILITY: S.NOT_APPLICABLE,  # an admission makes no derivation claim
+        D.AUTHENTICITY: S.NOT_CHECKED,
+        D.GOVERNANCE: S.NOT_CHECKED,
+    }
+    assert evaluate(report, PROFILES["integrity"]).satisfied
+    for strict in ("replay", "authenticated-admission", "governed", "isolated-replay", "reproducible"):
+        assert not evaluate(report, PROFILES[strict]).satisfied, strict
 
 
 def test_C1_unrequested_replay_is_not_checked(tmp_path: Path) -> None:
@@ -138,7 +161,7 @@ def test_C2_unlisted_runtime_is_refused_before_execution(tmp_path: Path) -> None
     assert status(report, D.DERIVATION_VERIFICATION) is S.NOT_CHECKED
     assert "not permitted by replay policy 'restricted'" in report.outcomes[D.DERIVATION_VERIFICATION].detail
     assert report.transforms_executed == 0 and not marker.exists()
-    assert status(report, D.EXECUTION_SAFETY) is S.NOT_APPLICABLE
+    assert status(report, D.EXECUTION_SAFETY) is S.NOT_CHECKED
 
 
 def test_C2_restricted_policy_pins_the_interpreter() -> None:
@@ -188,6 +211,15 @@ def test_C2_execution_is_never_reported_as_safe(tmp_path: Path) -> None:
     assert status(report, D.EXECUTION_SAFETY) is S.FAIL
     assert "no enforced isolation boundary" in report.outcomes[D.EXECUTION_SAFETY].detail
     assert not evaluate(report, PROFILES["isolated-replay"]).satisfied
+    # A satisfied replay profile must not conceal the failed safety assurance.
+    replay_result = evaluate(report, PROFILES["replay"])
+    assert replay_result.satisfied and replay_result.unrequired_failures == (D.EXECUTION_SAFETY,)
+    proc = run_cli(root, "replay", d)
+    assert proc.returncode == 0, proc.stdout
+    assert "note: execution_safety is FAIL (not required by profile replay)" in proc.stdout
+    doc = json.loads(run_cli(root, "replay", d, "--json").stdout)
+    assert doc["profile"]["satisfied"] is True
+    assert doc["profile"]["unrequired_failures"] == ["execution_safety"]
 
 
 # --- C3: identical bytes, distinct derivations, distinct record IDs --------
@@ -402,7 +434,7 @@ def test_C6_repository_controls_do_not_produce_governance_assurance(tmp_path: Pa
     assert proc.returncode == 2 and "profile governed: NOT SATISFIED" in proc.stdout
 
 
-# --- C7: CI never executes transforms and holds a read-only token ----------
+# --- C7: CI does not invoke derivation replay; its token is read-only -----
 
 
 def _code_lines(path: Path) -> List[str]:
@@ -534,3 +566,105 @@ def test_C8_broken_or_missing_records_fail_rather_than_pass(tmp_path: Path) -> N
         assert status(report, D.ARTIFACT_INTEGRITY) is S.NOT_CHECKED
         assert status(report, D.DERIVATION_VERIFICATION) is S.NOT_CHECKED
         assert not evaluate(report, PROFILES["integrity"]).satisfied
+
+
+# --- C9: canonical encoding and record identity match the frozen vectors ---
+#
+# conformance/record-v1-vectors.json is language-neutral (bytes as hex) so an
+# independent implementation can run the same cases. Expected outcomes were
+# written by hand; record IDs were cross-checked outside Python (jq -cS +
+# sha256sum). The vectors are frozen for 4gartha.record/1.
+
+VECTORS = json.loads((REPO / "conformance" / "record-v1-vectors.json").read_text(encoding="utf-8"))
+_by_name = lambda section: {v["name"]: v for v in VECTORS[section]}  # noqa: E731
+
+
+def test_C9_vector_constants_match_the_implementation() -> None:
+    assert VECTORS["protocol"] == records.PROTOCOL
+    assert bytes.fromhex(VECTORS["domain_tag_hex"]) == records.DOMAIN_TAG == b"4gartha.record/1\x00"
+    assert VECTORS["max_depth"] == canonical.MAX_DEPTH
+    assert VECTORS["max_safe_integer"] == canonical.MAX_SAFE_INTEGER == 2**53 - 1
+
+
+def test_C9_vectors_cover_every_canonicalization_boundary() -> None:
+    reasons = {v["reason"] for v in VECTORS["decode"] if v["expect"] == "reject"}
+    required = {"duplicate-key", "whitespace", "key-order", "bom", "float", "negative-zero", "nan",
+                "big-int", "escape-form", "non-nfc", "non-ascii-key", "surrogate", "non-utf8", "depth", "not-json"}
+    assert required <= reasons, f"missing boundary vectors: {sorted(required - reasons)}"
+    accepted = {v["name"] for v in VECTORS["decode"] if v["expect"] == "accept"}
+    assert {"literal-non-ascii", "short-escapes", "control-escapes-lowercase-hex", "depth-at-limit",
+            "max-safe-integers", "key-order-uppercase-first"} <= accepted
+    assert {r["reason"] for r in VECTORS["record_reject"]} >= {"argv", "authenticity", "non-semantic", "digest"}
+
+
+# Each reject vector must fail for its stated reason, not merely fail: the
+# round-trip check alone would reject (for example) duplicate keys, which would
+# hide a missing duplicate-key check that other parse paths rely on.
+_REASON_MESSAGE = {
+    "duplicate-key": "duplicate object key",
+    "whitespace": "not the canonical encoding",
+    "key-order": "not the canonical encoding",
+    "escape-form": "not the canonical encoding",
+    "negative-zero": "not the canonical encoding",
+    "bom": "byte-order mark",
+    "float": "floats are not permitted",
+    "nan": "is not permitted in canonical records",
+    "big-int": "integer outside",
+    "non-nfc": "not NFC-normalized",
+    "non-ascii-key": "is not ASCII",
+    "surrogate": "lone surrogate",
+    "non-utf8": "not UTF-8",
+    "depth": "nesting deeper than",
+    "not-json": "not JSON",
+}
+
+
+@pytest.mark.parametrize("name", sorted(_by_name("decode")))
+def test_C9_decode_vectors(name: str) -> None:
+    vec = _by_name("decode")[name]
+    data = bytes.fromhex(vec["hex"])
+    if vec["expect"] == "accept":
+        assert canonical.encode(canonical.decode(data)) == data
+    else:
+        with pytest.raises(canonical.CanonicalError) as exc:
+            canonical.decode(data)
+        assert _REASON_MESSAGE[vec["reason"]] in str(exc.value), (vec["reason"], str(exc.value))
+
+
+@pytest.mark.parametrize("text", ['{"a":1,"a":2}', '{"a": 1, "a": 1}', '{"x":{"k":1,"k":1}}'])
+def test_C9_strict_parsing_rejects_duplicate_keys_without_round_trip(text: str) -> None:
+    # The path used for --params-json: input text need not be canonical, so
+    # only the duplicate-key check stands between it and last-value-wins.
+    with pytest.raises(canonical.CanonicalError, match="duplicate object key"):
+        canonical.parse_strict(text)
+
+
+@pytest.mark.parametrize("name", sorted(_by_name("encode_reject")))
+def test_C9_encode_rejects_rather_than_normalizes(name: str) -> None:
+    value = _by_name("encode_reject")[name]["value"]
+    assert canonical.problems(value)
+    with pytest.raises(canonical.CanonicalError):
+        canonical.encode(value)
+
+
+@pytest.mark.parametrize("name", sorted(_by_name("record_ids")))
+def test_C9_record_id_vectors(tmp_path: Path, name: str) -> None:
+    import hashlib
+
+    vec = _by_name("record_ids")[name]
+    data = vec["canonical_utf8"].encode("utf-8")
+    assert canonical.encode(vec["record"]) == data
+    assert records.record_id(vec["record"]) == vec["record_id"]
+    assert hashlib.sha256(data).hexdigest() == vec["plain_sha256_of_canonical"] != vec["record_id"]
+    rid, path, _ = records.write(init_repo(tmp_path), vec["record"])
+    assert rid == vec["record_id"] and path.read_bytes() == data
+    assert records.load(tmp_path, rid).record == vec["record"]
+
+
+@pytest.mark.parametrize("name", sorted(_by_name("record_reject")))
+def test_C9_record_reject_vectors(tmp_path: Path, name: str) -> None:
+    record = _by_name("record_reject")[name]["record"]
+    assert records.validate(record)
+    with pytest.raises(ValueError):
+        records.write(init_repo(tmp_path), record)
+    assert list((tmp_path / "ledger" / "records").iterdir()) == []
