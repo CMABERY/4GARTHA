@@ -963,6 +963,29 @@ def test_C10_non_contiguous_batches_fail(tmp_path: Path) -> None:
 
 
 @needs_ed25519
+def test_C10_a_gap_between_batches_fails_even_when_roots_match(tmp_path: Path) -> None:
+    # A batch claiming to start after a phantom leaf. Its checkpoint is signed
+    # and logged over the leaves that exist, so every root matches: only the
+    # contiguity check sees that previous_size skips a leaf.
+    root = init_repo(tmp_path / "repo")
+    first = admit(root, b"one")
+    s1 = anchor_batch(root)
+    log_batch(root, s1)
+    late = sorted([admit(root, b"three"), admit(root, b"four")])
+    bdir = batch_dir(root, s1 + 1 + len(late))
+    bdir.mkdir()
+    (bdir / A.LEAVES_FILE).write_bytes(A.leaves_document(s1 + 1, late))
+    tree = A.Tree()
+    for rid in [first] + late:
+        tree.append(A.leaf_hash(A.record_leaf(rid)))
+    (bdir / A.CHECKPOINT_FILE).write_bytes(A.signed_checkpoint(ORIGIN, s1 + 1 + len(late), tree.root(), K["anchor"].signer))
+    log_batch(root, s1 + 1 + len(late))
+    oc = _gov(check(root, late[0], anchor_policy=policy()))
+    assert oc.status is S.FAIL, oc
+    assert any("batches must be contiguous" in p for p in oc.problems)
+
+
+@needs_ed25519
 def test_C10_duplicate_leaf_fails(tmp_path: Path) -> None:
     root, a, d, size = anchored_repo(tmp_path / "repo")
     a_again = A.leaves_document(size, [a])

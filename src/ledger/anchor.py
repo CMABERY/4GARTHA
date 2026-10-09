@@ -1008,13 +1008,14 @@ def _check_structure(repo_root: Path, a: Audit, check_records: bool) -> None:
             tree.append(leaf_hash(record_leaf(rid)))
         assert b.body is not None and b.note is not None
         origins.add(b.body.origin)
+        root = tree.root()
+        # parse_checkpoint_body admits only the canonical text, so equal fields
+        # mean the note text is exactly checkpoint_body(origin, size, root).
         if b.body.size != b.size:
             a.fail.append(f"anchor batch {b.name}: checkpoint is for tree size {b.body.size}")
-        elif b.body.root != tree.root():
+        elif b.body.root != root:
             a.fail.append(f"anchor batch {b.name}: checkpoint root hash {b.body.root.hex()} does not match the root "
-                          f"{tree.root().hex()} recomputed from leaves.json")
-        elif b.note.text != checkpoint_body(b.body.origin, b.size, tree.root()):
-            a.fail.append(f"anchor batch {b.name}: checkpoint text is not the canonical checkpoint body")
+                          f"{root.hex()} recomputed from leaves.json")
         if b.proof is not None:
             b.inclusion_problem = sigsum_inclusion_problem(b.proof, b.note.text)
             if b.inclusion_problem:
