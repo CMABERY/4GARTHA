@@ -6,9 +6,10 @@ on:
     branches: [ main ]
   workflow_dispatch:
 
-# Least privilege for every job. CI does not invoke ledger derivation replay,
-# but it does run contributor-controlled code on pull requests (pip install of
-# the PR's package, its tests and tools), so the token must not be able to
+# Least privilege for every job. The admission gate below does not replay
+# submitted records, but CI still runs contributor-controlled code on pull
+# requests (pip install of the PR's package, its tests and tools; the tests
+# deliberately replay fixture transforms), so the token must not be able to
 # write to the repository. ASSURANCE.md section 7.
 permissions:
   contents: read
@@ -59,13 +60,14 @@ jobs:
         run: |
           python tools/check_append_only.py $LEDGER_DIFF_ARGS "$LEDGER_DIFF_BASE"
 
-      - name: Verify newly added records (integrity profile; replay not invoked)
+      - name: Verify newly added records (integrity profile; submitted records are not replayed)
         # Checks every new record and its whole lineage: canonical bytes, schema,
         # record-ID binding, input records present, artifacts present and
         # matching their digests. Rejects legacy v0 ledger/nodes/ manifests.
-        # CI does not invoke ledger derivation replay until replay runs inside
-        # an enforced isolation boundary; derivation_verification is reported
-        # NOT_CHECKED. Do not add --replay here (tests/test_conformance.py, C7).
+        # The admission gate does not replay submitted records until replay
+        # runs inside an enforced isolation boundary; derivation_verification
+        # is reported NOT_CHECKED. Do not add --replay here
+        # (tests/test_conformance.py, C7).
         env:
           LEDGER_DIFF_BASE: ${{ steps.diffbase.outputs.base }}
           LEDGER_DIFF_ARGS: ${{ steps.diffbase.outputs.diff_args }}

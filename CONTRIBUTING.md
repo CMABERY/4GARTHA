@@ -42,8 +42,9 @@ or `ledger/nodes/**`.
 5. Open a PR. CI will:
    - run the test suite, including the conformance suite
    - enforce the add-only rules
-   - check new records and their whole lineage against the `integrity` profile. CI does not invoke
-     ledger derivation replay until replay is isolated.
+   - check new records and their whole lineage against the `integrity` profile. The admission gate
+     does not replay submitted records until replay is isolated. The test suite does replay its own
+     fixture transforms.
    - run the suite again against the built wheel
 
    CI is not a sandbox: your PR's tests, tools and package build run in it, with a read-only token.

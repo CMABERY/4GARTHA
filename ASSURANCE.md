@@ -144,7 +144,9 @@ current state and the requirements for a later version follow where they apply.
   - ERROR: an artifact is unreadable.
   - NOT_CHECKED: the lineage is incomplete, so the set of referenced artifacts is unknown.
 - **Does not establish.** That the bytes are accurate, legitimate or meaningful.
-- **Write side.** `admit`/`derive` refuse to reuse a corrupt existing CAS entry and never overwrite one.
+- **Write side.** `admit`/`derive` refuse to reuse a corrupt existing CAS entry and never overwrite one,
+  including one a concurrent writer creates mid-write: publication is no-clobber (SPEC.md, Storage
+  rules).
   `derive` refuses any input record that does not satisfy the `integrity` profile (record, lineage
   and artifacts), and `refs set` applies the same rule to its target. Writing an identical claim
   again reuses its ID only after the stored copy has been checked: canonical, schema-valid and bound
@@ -213,9 +215,13 @@ current state and the requirements for a later version follow where they apply.
   cannot read verifier secrets or files outside its run directory, write outside that directory,
   reach the network, or exceed resource limits.
 - **Adversary.** A1/A3 supplying hostile transform code.
-- **v1 status.** No boundary exists. The verifier reports **FAIL** whenever it executed a transform,
-  because it knows the property does not hold. When nothing ran it reports NOT_CHECKED, never
-  NOT_APPLICABLE, because no boundary was checked (C1, C2, C8). A replay that matches still
+- **v1 status.** No boundary exists. The verifier reports **FAIL** whenever a transform process
+  actually started, because it knows the property does not hold. When nothing ran it reports
+  NOT_CHECKED, never NOT_APPLICABLE, because no boundary was checked (C1, C2, C8).
+  - "Ran" means a process was created. A replay attempt whose runtime could not start, or whose
+    run directory or inputs could not be prepared, is an ERROR for derivation verification. It
+    counts in `replay_attempts` but not in `transforms_executed`, and leaves execution safety
+    NOT_CHECKED. A replay that matches still
   satisfies the `replay` profile, and the failed safety assurance is reported alongside it
   (`unrequired_failures`), never hidden.
 - **What v1 does provide (policy, not a boundary; pinned by C2):**
@@ -373,13 +379,20 @@ The pipeline itself is unchanged.
 
 ## 7. CI posture (P0)
 
-**The claim, exactly:** CI does not invoke ledger derivation replay. CI execution remains subject to
-GitHub Actions' workflow permissions, contributor trust policies, and execution-environment
-protections.
+**The claim, exactly:** CI does not replay newly submitted ledger records as part of its admission gate. The test suite deliberately executes fixture transforms to test replay behavior. Pull-request builds, tests, and tools still execute contributor-controlled code and are not sandboxed.
 
-- **No replay.** `tools/verify_new_records.py` is verify-only (profile `integrity`). Replay requires
-  an explicit `--replay`, which no workflow passes. C7 asserts this over every workflow file and
-  checks that the gate executes nothing.
+CI execution remains subject to GitHub Actions' workflow permissions, contributor trust policies,
+and execution-environment protections.
+
+- **Admission gate does not replay.** `tools/verify_new_records.py` is verify-only (profile
+  `integrity`), and replay requires an explicit `--replay`. C7 asserts that the workflow invokes the
+  gate exactly once, without `--replay`, and that the gate executes nothing. C7 also scans workflow
+  text for direct replay invocations. That scan is a regression check, not proof that nothing in CI
+  replays.
+- **The test suite does replay.** `pytest`, which both CI jobs run, deliberately executes fixture
+  transforms to test replay behavior (for example C2). These are the repository's own fixtures, run
+  without isolation like any replay. In a pull request they are contributor-controlled code, like
+  the rest of the suite.
 - **Read-only token.** `ci.yml` declares top-level `permissions: contents: read`, and no job
   requests write (C7).
 - **Built-wheel job.** The `Built-wheel tests` job runs the full suite against the built, installed
@@ -408,12 +421,12 @@ protections.
 | ID | Establishes | Tests (`tests/test_conformance.py`) |
 | --- | --- | --- |
 | C1 | Root-node replay never reports that an unperformed derivation succeeded; unrequested replay is NOT_CHECKED; acceptability depends on the profile. The reference case (unattested root, integrity-only) produces exactly the table in section 3. | `test_C1_*` |
-| C2 | A record cannot select an arbitrary runner under the restricted policy, and the transform does not inherit the verifier's environment. Timeouts are ERROR. Execution is never reported as safe, and a satisfied `replay` profile still reports the failed safety assurance. | `test_C2_*` |
+| C2 | A record cannot select an arbitrary runner under the restricted policy, and the transform does not inherit the verifier's environment. Timeouts are ERROR. Execution is never reported as safe, and a satisfied `replay` profile still reports the failed safety assurance. Execution safety is FAIL only once a transform process actually started; an unstartable runtime is an ERROR with nothing executed. | `test_C2_*` |
 | C3 | Different derivations (and admissions) of identical bytes have distinct record IDs; identical claims have the same ID. | `test_C3_*` |
 | C4 | Changing any identity-bearing field changes the record ID, both as the hash of the stored bytes and through the public `record_id()`. The field list is derived from the schema, so a field added later without coverage fails. IDs are domain-separated. | `test_C4_*` |
 | C5 | An unattested admission cannot satisfy `authenticated-admission`; records claiming unverifiable authenticity are rejected. | `test_C5_*` |
 | C6 | Passing repository controls (append-only check, record gate) do not yield governance assurance without external evidence. | `test_C6_*` |
-| C7 | No workflow invokes derivation replay; the CI token is read-only (top level, and no job grants write); the CI record gate executes nothing. | `test_C7_*` |
+| C7 | The CI record admission gate does not replay: invoked once without `--replay`, and it executes nothing. Workflow text has no direct replay invocation (a regression check). The CI token is read-only (top level, and no job grants write). This does not claim that nothing in CI replays: the test suite replays fixture transforms on purpose. | `test_C7_*` |
 | C8 | Every report covers all seven dimensions. Execution safety, reproducibility, authenticity and governance never PASS in v1. Broken or missing records fail rather than pass. | `test_C8_*` |
 | C9 | Canonical encoding and record IDs match the frozen, language-neutral vectors. These cover duplicate keys, floats and number forms, Unicode (NFC, surrogates, invalid UTF-8), escaping, key order, whitespace, BOM, depth, domain separation, and schema rejections. Each reject vector must fail for its stated reason, not merely fail. Independently of Python, CI re-serializes every record-ID fixture with `jq -cSj` and recomputes its record ID and plain SHA-256 with `sha256sum`. | `test_C9_*`, `conformance/record-v1-vectors.json`, `ci/verify_record_ids.sh` |
 
@@ -458,9 +471,21 @@ The catalogue covers these defects:
   the round-trip check dropped
 - cycles skipped
 - unchecked ref targets or derive inputs
+- the defects found in implementation review, re-planted in their original form:
+  - a record writer that ignores the size limit its reader enforces
+  - CAS publication that clobbers a concurrently created entry
+  - the independent ID checker looping over a command substitution, which skips every comparison
+    when `seq` is unavailable
+  - a replay attempt counted as executed code
+  - a run-directory failure escaping as an exception
 
 The harness's own fail-closed behavior runs in CI (`tests/test_planted_defects_harness.py`, against a
 synthetic repository). The full catalogue run does not.
+
+**Trust boundary.** The disposable checkout isolates files, not execution. The tests run as the
+invoking user, with that user's filesystem access, network and most environment variables. Run the
+harness only on revisions you trust as much as your own code. Allowlisting the environment it
+passes to tests is possible follow-up hardening.
 
 A PASS shows that the suite detects *these particular* defects. It does not show exhaustive security
 coverage, and it is not a substitute for adversarial review.
@@ -473,7 +498,7 @@ until real controls exist, and the tests guarantee that the reports say so.
 
 | Priority | Item | Acceptance condition | State |
 | --- | --- | --- | --- |
-| P0 | CI does not invoke derivation replay | No ledger transform runs in CI; CI jobs hold a read-only token | Done for the replay path (C7). PR CI still runs contributor code (section 7) |
+| P0 | The CI admission gate does not replay submitted records | Newly submitted ledger records are verified, not replayed; CI jobs hold a read-only token | Done (C7). The test suite replays fixtures, and PR CI runs contributor code (section 7) |
 | P1 | This contract and its conformance suite | Every assurance has semantics, failure states and adversary assumptions | Done: sections 2–5, C1–C8 |
 | P1 | Artifact IDs separate from record IDs | Multiple derivations reference identical bytes without ambiguity | Done: `4gartha.record/1`, C3/C4/C9 |
 | P1 | Accurate README/CONTRIBUTING/SECURITY | No documentation claims a guarantee the implementation does not provide | Done (this revision) |

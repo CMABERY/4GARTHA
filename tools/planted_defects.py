@@ -16,6 +16,12 @@ Manual maintenance command (not run in CI):
 
 Requires git and a Python environment with requirements.lock installed.
 
+Trust boundary: the disposable checkout isolates *files*, not *execution*. The
+tests it runs execute as the invoking user, with that user's filesystem
+access, network and most environment variables (PYTHONPATH, PYTEST_ADDOPTS and
+plugin autoloading are overridden). Run it only on revisions you trust as much
+as your own code; it is not a way to inspect untrusted changes.
+
 Guarantees:
   - Isolation: works only in a harness-owned temporary directory; the
     invoking working tree is never written to (checked before and after).
@@ -133,10 +139,11 @@ CATALOGUE: Tuple[Defect, ...] = (
     Defect("M10", "CI workflow invokes replay", ".github/workflows/ci.yml",
            "python tools/verify_new_records.py $LEDGER_DIFF_ARGS",
            "python tools/verify_new_records.py --replay $LEDGER_DIFF_ARGS",
-           ((_c("test_C7_workflows_do_not_replay_and_ci_token_is_read_only"), r"ci\.yml invokes derivation replay via '--replay'"),)),
+           ((_c("test_C7_admission_gate_step_does_not_replay"), r"the record admission gate must not replay"),
+            (_c("test_C7_workflow_text_has_no_direct_replay_invocation"), r"ci\.yml invokes derivation replay via '--replay'"))),
     Defect("M11", "CI workflow token can write", ".github/workflows/ci.yml",
            "permissions:\n  contents: read", "permissions:\n  contents: write",
-           ((_c("test_C7_workflows_do_not_replay_and_ci_token_is_read_only"), r"\['contents: write'\]"),)),
+           ((_c("test_C7_ci_token_is_read_only"), r"\['contents: write'\]"),)),
     Defect("M12", "CI record gate replays by default", "tools/verify_new_records.py",
            "    report = verify(repo_root, sorted(new_ids), replay=args.replay)",
            "    report = verify(repo_root, sorted(new_ids), replay=True)",
@@ -161,7 +168,7 @@ CATALOGUE: Tuple[Defect, ...] = (
     Defect("M16", "CI job grants itself write permission", ".github/workflows/ci.yml",
            "    name: Ledger Integrity\n    runs-on: ubuntu-latest",
            "    name: Ledger Integrity\n    permissions:\n      contents: read\n      pull-requests: write\n    runs-on: ubuntu-latest",
-           ((_c("test_C7_workflows_do_not_replay_and_ci_token_is_read_only"), r"no job may request write permissions"),)),
+           ((_c("test_C7_ci_token_is_read_only"), r"no job may request write permissions"),)),
     Defect("M17", "canonical encoding accepts floats", "src/ledger/canonical.py",
            '        return [f"{path}: floats are not permitted in canonical records"]', "        return []",
            ((_c("test_C9_encode_rejects_rather_than_normalizes[float]"), r"assert \[\]"),)),
@@ -183,8 +190,8 @@ CATALOGUE: Tuple[Defect, ...] = (
            ((_c("test_C9_decode_vectors[whitespace-after-colon]"), r"DID NOT RAISE"),
             (_c("test_C9_decode_vectors[escaped-non-ascii]"), r"DID NOT RAISE"))),
     Defect("M22", "execution safety NOT_APPLICABLE when nothing ran", "src/ledger/verifier.py",
-           "        o[Dimension.EXECUTION_SAFETY] = Outcome(\n            Status.NOT_CHECKED,",
-           "        o[Dimension.EXECUTION_SAFETY] = Outcome(\n            Status.NOT_APPLICABLE,",
+           '            Status.NOT_CHECKED,\n            "no transform was executed in this run, and no isolation boundary was checked "',
+           '            Status.NOT_APPLICABLE,\n            "no transform was executed in this run, and no isolation boundary was checked "',
            ((_c("test_C1_root_replay_is_not_applicable_not_success"), _is("NOT_APPLICABLE", "NOT_CHECKED")),
             (_c("test_C1_unattested_root_under_ci_integrity_profile"), r"EXECUTION_SAFETY"))),
     Defect("M23", "satisfied profile conceals a failed dimension", "src/ledger/assurance.py",
@@ -209,6 +216,35 @@ CATALOGUE: Tuple[Defect, ...] = (
            'DOMAIN_TAG = PROTOCOL.encode("ascii") + b"\\x00"', 'DOMAIN_TAG = PROTOCOL.encode("ascii") + b"\\x01"',
            ((_c("test_C9_vector_constants_match_the_implementation"), r"DOMAIN_TAG"),
             (_c("test_C4_record_ids_are_domain_separated"), r'hashlib\.sha256\(b"4gartha\.record/1\\x00" \+ data\)'))),
+    # Defects found in implementation review of PR #34, re-planted in their
+    # original form: each must be caught by the regression test added for it.
+    Defect("M28", "record writer ignores the size limit the reader enforces", "src/ledger/records.py",
+           "        if size > MAX_RECORD_BYTES:", "        if False:",
+           (("tests/test_records.py::test_oversized_record_is_refused_before_publication", r"assert False"),),
+           targets=("tests/test_records.py",)),
+    Defect("M29", "CAS publication clobbers a concurrently created entry", "src/ledger/cas.py",
+           "    if not publish_no_clobber(tmp, dst):",
+           "    os.replace(tmp, dst)\n    if False:",
+           (("tests/test_cas_existing_objects.py::test_store_blob_race_with_corrupt_competitor_is_refused_not_clobbered[link]",
+             r"DID NOT RAISE"),),
+           targets=("tests/test_cas_existing_objects.py",)),
+    Defect("M30", "independent ID checker loops over a command substitution", "ci/verify_record_ids.sh",
+           "for ((i = 0; i < count; i++)); do", "for i in $(seq 0 $((count - 1))); do",
+           # The comparison counter catches it independently of the loop fix.
+           (("tests/test_verify_record_ids_script.py::test_failing_seq_cannot_skip_the_comparisons",
+             r"compared 0 fixture\(s\), expected 4; refusing to report success"),
+            ("tests/test_verify_record_ids_script.py::test_script_never_loops_over_a_command_substitution",
+             r"use an arithmetic for-loop")),
+           targets=("tests/test_verify_record_ids_script.py",)),
+    Defect("M31", "replay attempt counted as executed code", "src/ledger/verifier.py",
+           "                if ex.started:\n                    executed += 1",
+           "                if True:\n                    executed += 1",
+           ((_c("test_C2_unstartable_runtime_is_not_reported_as_executed"), r"assert \(1, 1\) == \(1, 0\)"),)),
+    Defect("M32", "run-directory failure escapes as an exception", "src/ledger/execution.py",
+           '    except OSError as e:\n        return Execution("error", errors=(f"could not create a run directory: {e}",))',
+           '    except ZeroDivisionError as e:\n        return Execution("error", errors=(f"could not create a run directory: {e}",))',
+           (("tests/test_verifier.py::test_unusable_workdir_is_a_typed_error", r"FileExistsError"),),
+           targets=("tests/test_verifier.py",)),
 )
 
 

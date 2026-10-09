@@ -195,7 +195,8 @@ def verify(
     admissions = [rid for rid in lin.order if valid.get(rid, {}).get("kind") == "admission"]
 
     # --- derivation verification (+ what it executed) ---------------------
-    executed = 0
+    attempts = 0  # replays attempted
+    executed = 0  # transform processes actually started
     if not lin.complete and not derivations:
         dv = Outcome(Status.NOT_CHECKED, "lineage could not be established")
     elif lin.cycles:
@@ -225,7 +226,7 @@ def verify(
                 for in_rid in records.input_ids(rec):
                     aid = valid[in_rid]["output"]["artifact"]
                     inputs.append((in_rid, aid, verified[aid]))
-                executed += 1
+                attempts += 1
                 ex = run_transform(
                     policy.argv_for(t["runtime"]),  # type: ignore[arg-type]
                     verified[t["artifact"]],
@@ -236,6 +237,8 @@ def verify(
                     workdir=workdir,
                     keep=keep,
                 )
+                if ex.started:
+                    executed += 1
                 where = (f" (run directory: {ex.workdir})" if ex.workdir is not None and (keep or workdir is not None) else "")
                 if ex.status == "error":
                     dv = Outcome(Status.ERROR, f"replay of {rid} could not conclude{where}", ex.errors)
@@ -258,6 +261,11 @@ def verify(
     # --- execution safety -------------------------------------------------
     if executed:
         o[Dimension.EXECUTION_SAFETY] = Outcome(Status.FAIL, f"{executed} transform(s) executed with {NO_ISOLATION}")
+    elif attempts:
+        o[Dimension.EXECUTION_SAFETY] = Outcome(
+            Status.NOT_CHECKED,
+            f"{attempts} replay attempt(s), but no transform process started, and no isolation boundary was checked",
+        )
     else:
         o[Dimension.EXECUTION_SAFETY] = Outcome(
             Status.NOT_CHECKED,
@@ -289,7 +297,8 @@ def verify(
     # --- governance -------------------------------------------------------
     o[Dimension.GOVERNANCE] = Outcome(Status.NOT_CHECKED, GOVERNANCE_NOT_IMPLEMENTED)
 
-    return Report(targets=targets, outcomes=o, records_checked=len(lin.loaded), transforms_executed=executed)
+    return Report(targets=targets, outcomes=o, records_checked=len(lin.loaded),
+                  transforms_executed=executed, replay_attempts=attempts)
 
 
 def verify_one(repo_root: Path, rid: str, **kw) -> Report:

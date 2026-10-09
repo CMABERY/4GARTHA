@@ -7,7 +7,8 @@ transform that ignores its inputs and writes constant bytes replays perfectly. R
 code is a human process (see [ASSURANCE.md](../ASSURANCE.md), Derivation verification).
 
 Replay executes transform code **without an isolation boundary** (ASSURANCE.md, Execution safety).
-Never replay records you would not run as your own user. CI does not invoke replay.
+Never replay records you would not run as your own user. The CI admission gate does not replay
+submitted records.
 
 ## Interface `4gartha.transform-argv/1`
 

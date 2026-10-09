@@ -215,3 +215,34 @@ def test_write_is_idempotent_and_never_overwrites(tmp_path: Path) -> None:
         records.write(root, rec)
     assert path.read_bytes() == b"corrupt"
     assert [p.name for p in path.parent.iterdir()] == [path.name]  # no temp files left
+
+
+# --- review finding 1: the writer never publishes what the reader rejects ----
+
+
+def _sized_derivation(n_bytes: int) -> dict:
+    """A schema-valid derivation whose canonical encoding is exactly n_bytes."""
+    rec = records.derivation("a" * 64, ["b" * 64], "c" * 64, "python3", {"p": ""})
+    rec["transform"]["params"]["p"] = "x" * (n_bytes - len(canonical.encode(rec)))
+    assert len(canonical.encode(rec)) == n_bytes
+    return rec
+
+
+def test_record_at_the_size_limit_is_written_and_loads(tmp_path: Path) -> None:
+    root = init_repo(tmp_path)
+    rec = _sized_derivation(records.MAX_RECORD_BYTES)
+    assert records.validate(rec) == []
+    rid, path, created = records.write(root, rec)
+    assert created and path.stat().st_size == records.MAX_RECORD_BYTES
+    assert records.load(root, rid).problem is None
+
+
+def test_oversized_record_is_refused_before_publication(tmp_path: Path) -> None:
+    root = init_repo(tmp_path)
+    rec = _sized_derivation(records.MAX_RECORD_BYTES + 1)
+    assert any(e.startswith("size:") for e in records.validate(rec))
+    with pytest.raises(ValueError, match="limit is 1048576"):
+        records.write(root, rec)
+    with pytest.raises(ValueError, match="limit is 1048576"):
+        records.record_id(rec)
+    assert list((root / "ledger" / "records").iterdir()) == []  # no record, no temp file

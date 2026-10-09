@@ -127,7 +127,7 @@ def test_record_tool_accepts_valid_new_records_without_executing(tmp_path: Path)
     assert proc.returncode == 0, proc.stderr
     first = proc.stdout.splitlines()[0]
     assert first == "record check: 2 new record(s), 2 in lineage; profile integrity: SATISFIED"
-    assert "no transform code was executed" in proc.stdout
+    assert "this gate executed no transform code" in proc.stdout
     assert not marker.exists()
     assert _record_tool(root, "HEAD").stdout.strip() == "record check: no new records"
 

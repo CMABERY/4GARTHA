@@ -129,3 +129,58 @@ def test_missing_tool_fails_closed(tmp_path: Path) -> None:
                           text=True, timeout=60, env=env)
     assert proc.returncode != 0
     assert "required tool not found: jq" in proc.stderr
+
+
+# --- review finding 3: success only after every fixture was compared --------
+
+_EXTERNAL_TOOLS = ("jq", "sha256sum", "cmp", "od", "mktemp", "cat", "cut", "tr", "head", "dirname", "rm")
+
+
+def _path_without(tmp_path: Path, missing: str, fakes: dict | None = None) -> dict:
+    bindir = tmp_path / f"bin-without-{missing}"
+    bindir.mkdir()
+    for tool in ("bash", "seq", *_EXTERNAL_TOOLS):
+        found = shutil.which(tool)
+        if tool != missing and found:
+            os.symlink(found, bindir / tool)
+    for name, body in (fakes or {}).items():
+        (bindir / name).write_text(body)
+        (bindir / name).chmod(0o755)
+    return {"PATH": str(bindir), "HOME": str(tmp_path)}
+
+
+def _run_with(env: dict) -> subprocess.CompletedProcess:
+    bash = shutil.which("bash")
+    return subprocess.run([bash, str(SCRIPT), str(VECTORS)], capture_output=True, text=True, timeout=60, env=env)
+
+
+def _compared(stdout: str) -> int:
+    return sum(1 for line in stdout.splitlines() if line.startswith(("ok   ", "FAIL ")))
+
+
+def test_failing_seq_cannot_skip_the_comparisons(tmp_path: Path) -> None:
+    # Review reproduction: `for i in $(seq ...)` with a failing seq ran zero
+    # iterations under set -e and still printed success.
+    env = _path_without(tmp_path, "seq", fakes={"seq": "#!/bin/sh\nexit 127\n"})
+    proc = _run_with(env)
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+    assert _compared(proc.stdout) == 4
+    assert "4/4 fixtures reproduced" in proc.stdout
+
+
+@pytest.mark.parametrize("missing", _EXTERNAL_TOOLS + ("seq",))
+def test_no_missing_tool_yields_success_without_four_comparisons(tmp_path: Path, missing: str) -> None:
+    proc = _run_with(_path_without(tmp_path, missing))
+    if missing in _EXTERNAL_TOOLS:
+        assert proc.returncode != 0, f"succeeded without {missing}"
+        assert f"required tool not found: {missing}" in proc.stderr
+    else:  # not used by the script: must still compare everything
+        assert proc.returncode == 0 and _compared(proc.stdout) == 4
+
+
+def test_script_never_loops_over_a_command_substitution() -> None:
+    import re
+
+    text = SCRIPT.read_text(encoding="utf-8")
+    assert not re.search(r"^\s*for\s+\w+\s+in\s+[^;]*\$\(", text, re.M), "use an arithmetic for-loop"
+    assert '[ "$checked" -eq "${#EXPECTED_FIXTURES[@]}" ]' in text  # success requires every comparison

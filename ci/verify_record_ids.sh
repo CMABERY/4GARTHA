@@ -12,7 +12,13 @@
 #   2. require sha256("4gartha.record/1" || 0x00 || bytes) == `record_id`
 #   3. require sha256(bytes) == `plain_sha256_of_canonical`
 # Fails closed: a missing tool, a missing or unexpected fixture, a changed
-# fixture count, a missing field, or any mismatch exits non-zero.
+# fixture count, a missing field, or any mismatch exits non-zero. Success is
+# printed only after counting that every expected fixture was actually
+# compared (a loop that silently ran zero times cannot pass).
+#
+# Loops use bash arithmetic, never a command substitution in a `for` word list:
+# with `set -e`, a failing substitution there (e.g. a missing `seq`) yields an
+# empty list rather than an error.
 #
 # Usage: ci/verify_record_ids.sh [vectors.json]
 set -euo pipefail
@@ -29,7 +35,8 @@ DOMAIN_TAG_TEXT='4gartha.record/1'   # followed by one NUL byte
 
 fail() { echo "FAIL: $*" >&2; exit 1; }
 
-for tool in jq sha256sum cmp od mktemp; do
+# Every external command the script runs (anything else is a bash builtin).
+for tool in jq sha256sum cmp od mktemp cat cut tr head dirname rm; do
   command -v "$tool" >/dev/null 2>&1 || fail "required tool not found: $tool"
 done
 [ -f "$VECTORS" ] || fail "vectors file not found: $VECTORS"
@@ -57,7 +64,8 @@ for want in "${EXPECTED_FIXTURES[@]}"; do
 done
 
 failures=0
-for i in $(seq 0 $((count - 1))); do
+checked=0
+for ((i = 0; i < count; i++)); do
   name=$(jq -er ".record_ids[$i].name" "$VECTORS")
   for f in record canonical_utf8 record_id plain_sha256_of_canonical; do
     jq -e ".record_ids[$i] | has(\"$f\") and (.$f != null)" "$VECTORS" >/dev/null \
@@ -81,6 +89,7 @@ for i in $(seq 0 $((count - 1))); do
   [ "$got_plain" = "$want_plain" ] && plain=ok || plain=MISMATCH
   [ "$got_plain" != "$got_id" ] || plain="MISMATCH (equals record ID)"
 
+  checked=$((checked + 1))
   if [ "$canon$rid$plain" = "okokok" ]; then
     echo "ok   $name  record_id=$got_id"
   else
@@ -94,4 +103,7 @@ done
 if [ "$failures" -ne 0 ]; then
   fail "$failures of $count record-ID fixture(s) did not reproduce"
 fi
-echo "independent record-ID check: $count/$count fixtures reproduced (serialization, record_id, plain sha256)"
+# Never report success without having compared every expected fixture.
+[ "$checked" -eq "${#EXPECTED_FIXTURES[@]}" ] \
+  || fail "compared $checked fixture(s), expected ${#EXPECTED_FIXTURES[@]}; refusing to report success"
+echo "independent record-ID check: $checked/${#EXPECTED_FIXTURES[@]} fixtures reproduced (serialization, record_id, plain sha256)"

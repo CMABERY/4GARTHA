@@ -39,6 +39,7 @@ from pathlib import Path
 from typing import Any, Dict, Iterator, List, Optional, Tuple
 
 from . import canonical
+from .cas import publish_no_clobber
 
 PROTOCOL = "4gartha.record/1"
 # Preimage prefix: protocol identifier and a NUL. Record IDs are hashed over
@@ -118,6 +119,12 @@ def validate(obj: Any) -> List[str]:
         rt = t.get("runtime") if isinstance(t, dict) else None
         if isinstance(rt, str) and RUNTIME_RE.fullmatch(rt) is None:
             errors.append(f"schema: record.transform.runtime: {rt!r} is not a runtime name")
+    # Size is part of validity, so the writer can never publish a record the
+    # reader rejects (load() refuses files over MAX_RECORD_BYTES).
+    if not any(e.startswith("canonical:") for e in errors):
+        size = len(canonical.encode(obj))
+        if size > MAX_RECORD_BYTES:
+            errors.append(f"size: canonical encoding is {size} bytes; the limit is {MAX_RECORD_BYTES}")
     return errors
 
 
@@ -208,10 +215,10 @@ def load(repo_root: Path, rid: str) -> Loaded:
 def _publish(path: Path, data: bytes) -> bool:
     """Atomically create ``path`` with ``data``; False if it already exists.
 
-    The bytes are written to a unique temp file and hard-linked into place, so
-    a crash can never leave a partially written record under a valid ID and an
-    existing record is never replaced. Falls back to exclusive create where the
-    filesystem has no hard links.
+    The bytes are written and synced to a unique temp file, then published
+    with ``cas.publish_no_clobber`` (hard link, with fallbacks): an existing
+    record is never replaced, and where hard links work a crash can never
+    leave a partially written record under a valid ID.
     """
     fd, tmp_name = tempfile.mkstemp(prefix=f".{path.name}.", suffix=".tmp", dir=path.parent)
     tmp = Path(tmp_name)
@@ -220,21 +227,10 @@ def _publish(path: Path, data: bytes) -> bool:
             f.write(data)
             f.flush()
             os.fsync(f.fileno())
-        try:
-            os.link(tmp, path)
-            return True
-        except FileExistsError:
-            return False
-        except OSError:
-            pass  # filesystem without hard links: fall back to exclusive create
-        try:
-            with path.open("xb") as f:
-                f.write(data)
-            return True
-        except FileExistsError:
-            return False
-    finally:
+    except BaseException:
         tmp.unlink(missing_ok=True)
+        raise
+    return publish_no_clobber(tmp, path)
 
 
 class RecordConflict(ValueError):

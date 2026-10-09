@@ -222,3 +222,49 @@ def test_package_exports_import_cleanly() -> None:
         assert gone not in ledger.__all__
         with pytest.raises(ModuleNotFoundError):
             importlib.import_module(f"ledger.{gone}")
+
+
+# --- review finding 5: preparation failures are typed, nothing "executed" ----
+
+
+def _replayable(root: Path, tmp_path: Path) -> tuple:
+    marker = tmp_path / "ran"
+    a = admit(root, b"in")
+    return derive(root, b"out", [a], marker_transform(marker, b"out")), marker
+
+
+def _leftover_run_dirs() -> set:
+    import tempfile
+
+    return {p.name for p in Path(tempfile.gettempdir()).glob("ledger-replay-*")}
+
+
+def test_unusable_workdir_is_a_typed_error(tmp_path: Path) -> None:
+    root = init_repo(tmp_path)
+    d, marker = _replayable(root, tmp_path)
+    not_a_dir = tmp_path / "workdir-is-a-file"
+    not_a_dir.write_text("x")
+    report = check(root, d, replay=True, workdir=not_a_dir)  # previously an uncaught FileExistsError
+    oc = report.outcomes[D.DERIVATION_VERIFICATION]
+    assert oc.status is S.ERROR and "could not create a run directory" in oc.problems[0]
+    assert (report.replay_attempts, report.transforms_executed) == (1, 0)
+    assert status(report, D.EXECUTION_SAFETY) is S.NOT_CHECKED
+    assert not marker.exists()
+
+
+def test_input_materialization_failure_is_a_typed_error(tmp_path: Path, monkeypatch) -> None:
+    root = init_repo(tmp_path)
+    d, marker = _replayable(root, tmp_path)
+    before = _leftover_run_dirs()
+
+    def disk_full(self, data):
+        raise OSError(28, "No space left on device")
+
+    monkeypatch.setattr(Path, "write_bytes", disk_full)
+    report = check(root, d, replay=True)
+    monkeypatch.undo()
+    oc = report.outcomes[D.DERIVATION_VERIFICATION]
+    assert oc.status is S.ERROR and "could not materialize replay inputs" in oc.problems[0]
+    assert report.transforms_executed == 0 and status(report, D.EXECUTION_SAFETY) is S.NOT_CHECKED
+    assert not marker.exists()
+    assert _leftover_run_dirs() <= before  # the run directory was removed

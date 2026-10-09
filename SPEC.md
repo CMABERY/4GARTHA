@@ -61,7 +61,9 @@ lets two different inputs share an identity or one input acquire two.
 ## Record kinds
 
 Schema: `ledger/schema/record.schema.json` (identical to the packaged
-`src/ledger/record.schema.json`, which is what the verifier uses). Every field is required, no other
+`src/ledger/record.schema.json`, which is what the verifier uses). A record's canonical encoding must not
+exceed **1,048,576 bytes**. Writers refuse larger records before publishing anything, and readers
+reject them. Every field is required, no other
 fields are permitted, and **every field is identity-bearing**. There is no non-semantic metadata.
 Human-friendly names belong in refs.
 
@@ -135,6 +137,8 @@ During replay the verifier materializes verified bytes in a fresh, empty run dir
   the run directory, and nothing else from the verifier. stdin: empty.
 - The derivation is verified iff the process exits 0 within the policy timeout, writes `out.bin`,
   and `SHA-256(out.bin)` equals `output.artifact`.
+- If the run directory or its inputs cannot be prepared, or the runtime cannot be started, the
+  replay is an operational error (`ERROR`), and no transform code ran.
 
 The default (`restricted`) policy defines one runtime, `python3`: the verifier's own interpreter in
 isolated mode (`sys.executable -I`). See `transforms/concat_parents.py`.
@@ -144,10 +148,14 @@ isolated mode (`sys.executable -I`). See `transforms/concat_parents.py`.
 - `ledger/objects/**` and `ledger/records/**` are add-only. CI rejects modification, deletion,
   rename or copy within them (`tools/check_append_only.py`), and every added record path must be
   `ledger/records/<64 lowercase hex>.json` (`tools/verify_new_records.py`).
-- Records are published via a temp file and a hard link, so a crash never leaves a partial record
-  under a valid ID. On filesystems without hard links this falls back to exclusive create, which is
-  not crash-atomic; a partial file then fails verification rather than passing. An existing entry is never replaced; an entry that is not a valid copy
-  of the record it is named for is reported, not repaired.
+- Objects and records are both published the same way. The bytes go to a fully written, synced temp
+  file, which is then hard-linked into place. Publication never replaces an existing entry, even
+  when a concurrent writer creates it after the writer's own existence check: the existing entry is
+  reused only if it verifies, and otherwise the write fails. Where hard links are unavailable,
+  Windows uses `os.rename`, which is likewise atomic and fails if the destination exists. Other
+  systems use exclusive create, which never clobbers but is not crash-atomic; a partial file then
+  fails verification rather than passing. An entry that is not a valid copy of what it is named for
+  is reported, never repaired.
 - `ledger/refs/**` holds mutable names for record IDs. Refs are a convenience: they carry no
   assurance and are not historical evidence. `ledger refs set` only accepts a target record that
   satisfies the `integrity` profile.

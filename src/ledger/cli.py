@@ -155,7 +155,8 @@ def print_report(report: Report, profile_name: str, as_json: bool) -> int:
     if as_json:
         print(json.dumps({"report": report.to_dict(), "profile": result.to_dict()}, indent=2, sort_keys=True))
     else:
-        print(f"records checked: {report.records_checked}; transforms executed: {report.transforms_executed}")
+        print(f"records checked: {report.records_checked}; replay attempts: {report.replay_attempts}; "
+              f"transforms executed: {report.transforms_executed}")
         for dim in Dimension:
             oc = report.outcomes[dim]
             print(f"{dim.value:<24} {oc.status.value:<15} {oc.detail}")

@@ -103,3 +103,82 @@ def test_store_blob_never_overwrites_an_existing_entry(tmp_path: Path) -> None:
 
     obj.write_bytes(b"correct")
     assert store_blob(src, cas, digest) == obj
+
+
+# --- review finding 2: publication never clobbers a concurrent writer -------
+#
+# Controlled race: a competing writer creates the destination after
+# store_blob's existence check and before it publishes (simulated at the
+# moment the temp file is created). Sequential tests with a pre-existing
+# entry never reach this window.
+
+
+def _race(monkeypatch, module, dst: Path, competitor: bytes) -> None:
+    real = module.tempfile.mkstemp
+
+    def racing_mkstemp(*args, **kwargs):
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        if not dst.exists():
+            dst.write_bytes(competitor)
+        return real(*args, **kwargs)
+
+    monkeypatch.setattr(module.tempfile, "mkstemp", racing_mkstemp)
+
+
+def _no_temp_files(root: Path) -> bool:
+    return not [p for p in (root / "ledger").rglob("*") if p.name.endswith(".tmp")]
+
+
+@pytest.mark.parametrize("hard_links", [True, False], ids=["link", "no-link-fallback"])
+def test_store_blob_race_with_corrupt_competitor_is_refused_not_clobbered(tmp_path: Path, monkeypatch, hard_links: bool) -> None:
+    import ledger.cas as cas_mod
+
+    root = init_repo(tmp_path)
+    src = root / "src.bin"
+    src.write_bytes(b"correct")
+    digest = sha256_bytes(b"correct")
+    dst = CasPaths.from_repo_root(root).object_path(digest)
+    _race(monkeypatch, cas_mod, dst, b"competitor wrote this")
+    if not hard_links:
+        if os.name == "nt":
+            pytest.skip("Windows fallback is os.rename")
+        monkeypatch.setattr(cas_mod.os, "link", lambda *a, **k: (_ for _ in ()).throw(PermissionError("no hard links")))
+
+    with pytest.raises(CasIntegrityError, match="corrupt"):
+        store_blob(src, CasPaths.from_repo_root(root), digest)
+    assert dst.read_bytes() == b"competitor wrote this"  # never overwritten
+    assert _no_temp_files(root)
+
+
+@pytest.mark.parametrize("hard_links", [True, False], ids=["link", "no-link-fallback"])
+def test_store_blob_race_with_intact_competitor_reuses_it(tmp_path: Path, monkeypatch, hard_links: bool) -> None:
+    import ledger.cas as cas_mod
+
+    root = init_repo(tmp_path)
+    src = root / "src.bin"
+    src.write_bytes(b"correct")
+    digest = sha256_bytes(b"correct")
+    dst = CasPaths.from_repo_root(root).object_path(digest)
+    _race(monkeypatch, cas_mod, dst, b"correct")
+    if not hard_links:
+        if os.name == "nt":
+            pytest.skip("Windows fallback is os.rename")
+        monkeypatch.setattr(cas_mod.os, "link", lambda *a, **k: (_ for _ in ()).throw(PermissionError("no hard links")))
+
+    assert store_blob(src, CasPaths.from_repo_root(root), digest) == dst
+    assert dst.read_bytes() == b"correct"
+    assert _no_temp_files(root)
+
+
+def test_record_write_race_never_clobbers(tmp_path: Path, monkeypatch) -> None:
+    from ledger import records
+    import ledger.records as records_mod
+
+    root = init_repo(tmp_path)
+    rec = records.admission("a" * 64, "s")
+    path = records.record_path(root, records.record_id(rec))
+    _race(monkeypatch, records_mod, path, b'{"competitor":true}')
+    with pytest.raises(records.RecordConflict, match="refusing to overwrite"):
+        records.write(root, rec)
+    assert path.read_bytes() == b'{"competitor":true}'
+    assert _no_temp_files(root)

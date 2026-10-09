@@ -56,7 +56,11 @@ class Report:
     targets: Tuple[str, ...]
     outcomes: Mapping[Dimension, Outcome]
     records_checked: int = 0
+    # A replay attempt that never started a process (unstartable runtime, run
+    # directory or inputs could not be prepared) is counted in replay_attempts
+    # only: transforms_executed counts processes that were actually started.
     transforms_executed: int = 0
+    replay_attempts: int = 0
 
     def __post_init__(self) -> None:
         missing = [d.value for d in Dimension if d not in self.outcomes]
@@ -72,6 +76,7 @@ class Report:
             "contract": CONTRACT,
             "targets": list(self.targets),
             "records_checked": self.records_checked,
+            "replay_attempts": self.replay_attempts,
             "transforms_executed": self.transforms_executed,
             "outcomes": {d.value: self.outcomes[d].to_dict() for d in Dimension},
         }

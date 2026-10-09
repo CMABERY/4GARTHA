@@ -33,7 +33,8 @@ This repo contains two pieces of infrastructure:
 | Artifact integrity, provenance integrity | Verified |
 | Derivation verification | Verified by local replay on request |
 | Execution safety | **Not provided.** Replay runs transform code without a sandbox (FAIL when replay runs, NOT_CHECKED otherwise) |
-| Reproducibility, authenticity, governance | **Not provided.** Always reported NOT_CHECKED |
+| Reproducibility | **Not provided.** NOT_CHECKED for lineages with a derivation; NOT_APPLICABLE for admission-only lineages |
+| Authenticity, governance | **Not provided.** Always reported NOT_CHECKED |
 
 Content addressing makes it infeasible to change a record or artifact without changing its ID, so
 in-place modification is detected. It does not stop deletion or replacement, and it does not make
@@ -140,12 +141,10 @@ CI (`.github/workflows/ci.yml`, read-only token) on pull requests and pushes to 
 - **Append-only check:** rejects modification, deletion, rename or copy under `ledger/objects/**`,
   `ledger/records/**` and `ledger/nodes/**`.
 - **Record gate:** applies the `integrity` profile to new records and their lineage, and rejects
-  malformed record paths and v0 node manifests. **CI does not invoke ledger derivation replay.**
+  malformed record paths and v0 node manifests. It does not replay them.
 - **Built-wheel tests:** the suite runs again against the installed wheel.
 
-CI is not a sandbox. Pull-request runs still execute contributor-controlled code (the package build,
-the tests and the tools), subject to GitHub Actions' permissions, contributor trust policies and
-execution-environment protections.
+CI does not replay newly submitted ledger records as part of its admission gate. The test suite deliberately executes fixture transforms to test replay behavior. Pull-request builds, tests, and tools still execute contributor-controlled code and are not sandboxed.
 
 These checks *detect*. They do not *prevent*: they run after a push lands, and anyone with write
 access controls both history and CI. `main` currently has no branch protection, and the one

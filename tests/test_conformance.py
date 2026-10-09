@@ -23,7 +23,7 @@ import pytest
 
 from ledger import canonical, records
 from ledger.assurance import PROFILES, Dimension, Report, Status, evaluate
-from ledger.execution import RESTRICTED, restricted_policy
+from ledger.execution import RESTRICTED, ReplayPolicy, restricted_policy
 
 from ledger_testutil import (
     PYTHON,
@@ -199,6 +199,35 @@ def test_C2_timeout_is_inconclusive_not_failed(tmp_path: Path) -> None:
     assert status(report, D.DERIVATION_VERIFICATION) is S.ERROR
     result = evaluate(report, PROFILES["replay"])
     assert not result.satisfied and result.error
+
+
+def test_C2_unstartable_runtime_is_not_reported_as_executed(tmp_path: Path) -> None:
+    # Review finding: a replay whose process never started was counted as
+    # executed code and reported execution_safety FAIL.
+    root = init_repo(tmp_path)
+    a = admit(root, b"in")
+    d = derive(root, b"out", [a], marker_transform(tmp_path / "ran", b"out"))
+    broken = ReplayPolicy("broken", {"python3": (str(tmp_path / "no-such-interpreter"),)})
+    report = check(root, d, replay=True, policy=broken)
+    assert status(report, D.DERIVATION_VERIFICATION) is S.ERROR
+    assert "could not start runtime" in report.outcomes[D.DERIVATION_VERIFICATION].problems[0]
+    assert (report.replay_attempts, report.transforms_executed) == (1, 0)
+    assert status(report, D.EXECUTION_SAFETY) is S.NOT_CHECKED
+    result = evaluate(report, PROFILES["replay"])
+    assert not result.satisfied and result.error
+
+
+def test_C2_execution_safety_fails_once_any_transform_process_started(tmp_path: Path) -> None:
+    root = init_repo(tmp_path)
+    a = admit(root, b"hello")
+    d1 = derive(root, b"hello!", [a], concat_transform(), params={"suffix": "!"})
+    d2 = derive(root, b"hello!!", [d1], concat_transform(), params={"suffix": "!"}, runtime="brokenrt")
+    mixed = ReplayPolicy("mixed", {"python3": RESTRICTED.runtimes["python3"],
+                                   "brokenrt": (str(tmp_path / "no-such-interpreter"),)})
+    report = check(root, d2, replay=True, policy=mixed)
+    assert (report.replay_attempts, report.transforms_executed) == (2, 1)
+    assert status(report, D.DERIVATION_VERIFICATION) is S.ERROR
+    assert status(report, D.EXECUTION_SAFETY) is S.FAIL  # d1's code did run
 
 
 def test_C2_execution_is_never_reported_as_safe(tmp_path: Path) -> None:
@@ -442,7 +471,13 @@ def test_C6_repository_controls_do_not_produce_governance_assurance(tmp_path: Pa
     assert proc.returncode == 2 and "profile governed: NOT SATISFIED" in proc.stdout
 
 
-# --- C7: CI does not invoke derivation replay; its token is read-only -----
+# --- C7: the CI admission gate does not replay; CI's token is read-only ---
+#
+# The claim tested here is deliberately narrow (ASSURANCE.md section 7): CI does
+# not replay newly submitted ledger records as part of its admission gate. CI
+# *does* execute transforms elsewhere: the test suite (run by pytest in CI)
+# replays fixture transforms on purpose, and PR builds, tests and tools are
+# contributor-controlled code. Nothing here claims CI is a sandbox.
 
 
 def _code_lines(path: Path) -> List[str]:
@@ -481,7 +516,24 @@ def test_C7_permission_scanner_reads_only_permission_blocks() -> None:
     assert _permission_entries(lines) == ["contents: read", "write-all", "pull-requests: write"]
 
 
-def test_C7_workflows_do_not_replay_and_ci_token_is_read_only() -> None:
+def _gate_invocations(lines: List[str]) -> List[str]:
+    return [l.strip() for l in lines if "tools/verify_new_records.py" in l]
+
+
+def test_C7_admission_gate_step_does_not_replay() -> None:
+    ci = _code_lines(REPO / ".github" / "workflows" / "ci.yml")
+    calls = _gate_invocations(ci)
+    assert len(calls) == 1, f"expected exactly one admission-gate invocation in ci.yml, found {calls}"
+    assert "--replay" not in calls[0], f"the record admission gate must not replay: {calls[0]}"
+    for wf in sorted((REPO / ".github" / "workflows").glob("*.yml")):
+        for call in _gate_invocations(_code_lines(wf)):
+            assert "--replay" not in call, f"{wf.name}: the record admission gate must not replay: {call}"
+
+
+def test_C7_workflow_text_has_no_direct_replay_invocation() -> None:
+    # A regression check for *direct* replay invocation in workflow files. It
+    # is not proof that nothing in CI replays: pytest, which CI runs, replays
+    # fixture transforms deliberately (e.g. test_C2_execution_is_never_reported_as_safe).
     workflows = sorted((REPO / ".github" / "workflows").glob("*.yml"))
     assert workflows
     for wf in workflows:
@@ -489,6 +541,8 @@ def test_C7_workflows_do_not_replay_and_ci_token_is_read_only() -> None:
         for forbidden in ("--replay", "ledger replay", "replay_new_nodes", "replay=True"):
             assert forbidden not in code, f"{wf.name} invokes derivation replay via {forbidden!r}"
 
+
+def test_C7_ci_token_is_read_only() -> None:
     ci = _code_lines(REPO / ".github" / "workflows" / "ci.yml")
     top = [i for i, l in enumerate(ci) if l.startswith("permissions:")]
     assert len(top) == 1, "ci.yml must declare top-level permissions"
@@ -500,7 +554,6 @@ def test_C7_workflows_do_not_replay_and_ci_token_is_read_only() -> None:
     assert block == ["contents: read"], block
     granted = _permission_entries(ci)
     assert not [g for g in granted if "write" in g], f"no job may request write permissions: {granted}"
-    assert any("python tools/verify_new_records.py" in l for l in ci)
 
 
 @pytest.mark.skipif(shutil.which("git") is None, reason="git not available")

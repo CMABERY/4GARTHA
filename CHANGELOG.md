@@ -38,6 +38,12 @@ not establish, and [SPEC.md](SPEC.md) for the format.
 - **Replay** runs with a minimal environment, empty stdin, a fresh directory and a timeout. It
   reports `execution_safety FAIL` whenever it executes code (there is no sandbox).
 - **`ledger refs set`** requires a target record that exists and passes the `integrity` profile.
+- **Record size** is part of validity. A record's canonical encoding must be at most 1 MiB. Writers
+  refuse larger records, so they never publish one the reader rejects.
+- **Publication** of CAS objects and records is no-clobber (hard link, with fallbacks), and is safe
+  against concurrent writers that do not share the session lock.
+- **Reports** count `replay_attempts` separately from `transforms_executed`, which counts started
+  processes only. Run-directory, input and runtime-start failures are typed ERRORs.
 - **Re-admitting an identical claim** returns the existing record ID once the stored copy has been
   checked, where v0 refused to ingest the same bytes again. A corrupt stored copy makes the write
   fail.
@@ -45,7 +51,8 @@ not establish, and [SPEC.md](SPEC.md) for the format.
 ### CI
 
 - Workflow token is read-only (`permissions: contents: read`).
-- CI does not invoke ledger derivation replay.
+- The CI admission gate does not replay submitted records. The test suite still replays its own
+  fixture transforms.
 - A new `Built-wheel tests` job runs the suite against the installed wheel.
 - `ci/verify_record_ids.sh` (step in `Ledger Integrity`) recomputes the record-ID fixtures without
   Python (`jq -cSj` and `sha256sum`).
