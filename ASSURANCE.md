@@ -304,10 +304,13 @@ current state and the requirements for a later version follow where they apply.
     actors, so it binds admins too). Changes to `main` must be merged from a pull request whose
     `Ledger Integrity` and `Built-wheel tests` checks, reported by GitHub Actions, passed. Both
     controls above run in `Ledger Integrity`. Force-pushes to `main` and its deletion are blocked.
-    No approving review is required, and a PR need not be up to date with `main`, so its checks
-    may have run against an older `main`. A PR's checks run that PR's own workflow and tests,
-    so A1 can make them pass by changing them (section 7). A4 can edit or disable the ruleset, and
-    nothing anchors its history externally.
+    Every commit added to `main` must carry a signature that GitHub verifies. No approving review
+    is required, and a PR need not be up to date with `main`, so its checks may have run against an
+    older `main`. A PR's checks run that PR's own workflow and tests, so A1 can make them pass by
+    changing them (section 7). GitHub, not the ledger verifier, decides which signatures verify,
+    and a verified signature identifies the GitHub account whose registered key signed a commit,
+    not whether the change is sound (compare 5.6). A4 can edit or disable the ruleset, and nothing
+    anchors its history externally.
 
   These produce CI results and repository settings, not evidence a verifier can check later, and
   A4 controls all of them. They defend against honest mistakes, and against A1 when maintainers
@@ -329,9 +332,11 @@ current state and the requirements for a later version follow where they apply.
     only for accounts new to GitHub). Workflow runs on a pull request from anyone who is not a
     collaborator wait until a maintainer approves them. Approving a run is not a review: the
     approved run still executes the PR's code.
-  - Commits pushed from the command line (for example `18e21d7` and `e8d2136`) are unsigned;
-    web-UI commits and merges made on GitHub (for example `15887a4`) carry GitHub's signature. The
-    ruleset does not require signed commits.
+  - Signed commits are required on `main` (`required_signatures` in `main-governance`, added
+    2026-10-09). The maintainer signs command-line commits with an SSH key registered on GitHub as
+    a signing key; web-UI commits and merges made on GitHub carry GitHub's signature. The rule
+    applies only to new commits: earlier command-line commits such as `18e21d7` and `e8d2136`
+    remain unsigned in history.
 - **Before PASS may be reported.** Requires all of:
   - External anchoring: periodic checkpoints that commit to the ledger's records (for example a
     Merkle root), signed and published to a log not controlled by A4, such as a transparency log or
@@ -437,7 +442,8 @@ and execution-environment protections.
     and `Built-wheel tests` checks required and no bypass (5.7).
   - Done 2026-10-09: the default workflow token permission is `read` (5.7).
   - Done 2026-10-09: workflow runs from all outside contributors require approval (5.7).
-  - Do not enforce signed commits until the contribution workflow produces them.
+  - Done 2026-10-09: signed commits are required on `main` (5.7). Outside contributors must sign
+    the commits in their PRs (CONTRIBUTING.md).
 
 ## 8. Conformance index
 
@@ -526,7 +532,7 @@ until real controls exist, and the tests guarantee that the reports say so.
 | P1 | Artifact IDs separate from record IDs | Multiple derivations reference identical bytes without ambiguity | Done: `4gartha.record/1`, C3/C4/C9 |
 | P1 | Accurate README/CONTRIBUTING/SECURITY | No documentation claims a guarantee the implementation does not provide | Done (this revision) |
 | P2 | External governance anchoring | History independently checkable against an external commitment | Not started (5.7) |
-| P2 | Branch protection and signing policy | Required checks and signing work with the actual contribution workflow | Branch protection done: ruleset `main-governance`, 2026-10-09 (5.7). Signing policy: owner action (section 7) |
+| P2 | Branch protection and signing policy | Required checks and signing work with the actual contribution workflow | Done 2026-10-09: ruleset `main-governance` requires both checks and signed commits (5.7) |
 | Later | Isolated replay; enforced environments; attested admission | 5.4, 5.5 and 5.6 may report PASS | Not started |
 
 ## 10. Changing this contract

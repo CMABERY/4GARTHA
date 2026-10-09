@@ -148,13 +148,15 @@ CI does not replay newly submitted ledger records as part of its admission gate.
 
 `main` is protected by a repository ruleset (`main-governance`, no bypass, admins included).
 Changes must be merged from a pull request with `Ledger Integrity` and `Built-wheel tests`
-passing, and force-pushes and deletion of `main` are rejected. On pull requests these checks
-therefore block the merge rather than only report afterwards.
+passing, every new commit must carry a signature GitHub verifies, and force-pushes and deletion of
+`main` are rejected. On pull requests these checks therefore block the merge rather than only
+report afterwards.
 
 They still do not establish governance. Anyone with admin access can change or disable the
-ruleset, no approving review is required, and a pull request's checks run that pull request's own
-workflow and tests. Governance is therefore reported NOT_CHECKED. External anchoring and a signing
-policy are open items: ASSURANCE.md sections 5.7 and 7.
+ruleset, no approving review is required, a pull request's checks run that pull request's own
+workflow and tests, and a commit signature identifies who signed a change, not whether it is
+sound. Governance is therefore reported NOT_CHECKED. External anchoring is an open item:
+ASSURANCE.md sections 5.7 and 7.
 
 ## Local hardening (pre-commit hook)
 

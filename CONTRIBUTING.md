@@ -42,7 +42,9 @@ or `ledger/nodes/**`.
    Replay runs that code as your user without a sandbox.
 4. Optionally point a ref at the record (`ledger refs set <name> <record ID>`).
 5. Open a PR. `main` rejects direct pushes, and a PR can be merged only once the `Ledger Integrity`
-   and `Built-wheel tests` checks pass. CI will:
+   and `Built-wheel tests` checks pass. Every commit in the PR must be signed, and GitHub must show
+   it as "Verified" ([commit signature verification](https://docs.github.com/en/authentication/managing-commit-signature-verification)).
+   CI will:
    - run the test suite, including the conformance suite
    - enforce the add-only rules
    - check new records and their whole lineage against the `integrity` profile. The admission gate
