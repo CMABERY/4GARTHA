@@ -32,5 +32,4 @@ def test_default_collection_includes_every_test_module() -> None:
     )
     assert proc.returncode == 0, proc.stdout + proc.stderr
     collected = {line.split("::", 1)[0] for line in proc.stdout.splitlines() if "::" in line}
-    assert "test_memory_system.py" in collected
     assert expected <= collected, f"not collected by default: {sorted(expected - collected)}"
