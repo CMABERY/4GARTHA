@@ -320,8 +320,11 @@ current state and the requirements for a later version follow where they apply.
     the ruleset.
   - The older ruleset (`AGARTHIAN-SURVIVAL`: required signatures, pull requests, required
     deployments) is disabled.
-  - The repository's default workflow token permission is `write`; `ci.yml` overrides it to `read`
-    for its own jobs.
+  - The repository's default workflow token permission is `read` (set 2026-10-09), so a workflow
+    without a `permissions` block gets a read-only token. A workflow can still declare write
+    permissions, as the Pages workflows do. `ci.yml` declares `read` itself (C7). GitHub Actions
+    is still allowed to approve pull requests; while the ruleset requires no approval, that grants
+    nothing.
   - Fork-PR workflow approval is required only for accounts new to GitHub.
   - Commits pushed from the command line (for example `18e21d7` and `e8d2136`) are unsigned;
     web-UI commits and merges made on GitHub (for example `15887a4`) carry GitHub's signature. The
@@ -428,8 +431,7 @@ and execution-environment protections.
 - **Owner actions.** Repository settings are kept out of source PRs.
   - Done 2026-10-09: `main` is protected by ruleset `main-governance`, with the `Ledger Integrity`
     and `Built-wheel tests` checks required and no bypass (5.7).
-  - Recommended, not performed: set the default workflow permission to read; other workflows rely
-    on it.
+  - Done 2026-10-09: the default workflow token permission is `read` (5.7).
   - Do not enforce signed commits until the contribution workflow produces them.
   - Consider requiring approval for all outside contributors' workflow runs.
 
