@@ -50,7 +50,9 @@ Implemented in `src/ledger/canonical.py`.
 **These rules are frozen for `4gartha.record/1`.** They are pinned by language-neutral vectors in
 [`conformance/record-v1-vectors.json`](conformance/record-v1-vectors.json): bytes as hex, expected
 accept/reject, and record IDs with their canonical text. The tests in `tests/test_conformance.py`
-(C9) run every vector. An independent implementation must produce the same outcome for every vector.
+(C9) run every vector, and `ci/verify_record_ids.sh` recomputes the record-ID vectors without
+Python (`jq` and `sha256sum`). An independent implementation must produce the same outcome for every
+vector.
 Changing any rule, even to accept something now rejected, is a new protocol with a new domain tag.
 
 Rationale: every one of the rejected cases would need a normalization policy, and any normalization

@@ -35,6 +35,13 @@ jobs:
       - name: Unit tests
         run: pytest -q
 
+      - name: Independent record-ID check (jq + sha256sum, no Python)
+        # Second implementation path for the committed record-ID fixtures
+        # (conformance/record-v1-vectors.json): re-serializes each record with
+        # jq, then recomputes the domain-separated record ID and plain SHA-256.
+        # Complements, does not replace, the Python C9 conformance tests.
+        run: bash ci/verify_record_ids.sh
+
       - name: Resolve ledger diff base
         # Immutable, event-appropriate base (see tools/ci_diff_base.py):
         #   pull_request      -> pull_request.base.sha, range base...HEAD

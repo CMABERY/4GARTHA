@@ -385,6 +385,11 @@ protections.
 - **Built-wheel job.** The `Built-wheel tests` job runs the full suite against the built, installed
   wheel and checks the wheel's contents. The packaged verifier is what CI proves, not only an
   editable checkout.
+- **Independent record-ID check.** The `Ledger Integrity` job runs `ci/verify_record_ids.sh`. Using
+  only `jq` and `sha256sum`, it serializes each committed record-ID fixture from its record object
+  and checks the canonical bytes, the domain-separated record ID and the plain SHA-256. It fails
+  closed on a missing tool, a changed fixture set, a missing field or any mismatch. It is a second
+  implementation path for those four fixtures, not a replacement for the C9 rejection vectors.
 - **What this does not cover.** Pull-request CI is not a sandbox. A PR's workflow run executes
   contributor-controlled code: `pip install` builds the PR's package, and `pytest` runs the PR's
   tests and tools. The mitigations are the read-only token, the absence of repository secrets, and
@@ -410,7 +415,7 @@ protections.
 | C6 | Passing repository controls (append-only check, record gate) do not yield governance assurance without external evidence. | `test_C6_*` |
 | C7 | No workflow invokes derivation replay; the CI token is read-only (top level, and no job grants write); the CI record gate executes nothing. | `test_C7_*` |
 | C8 | Every report covers all seven dimensions. Execution safety, reproducibility, authenticity and governance never PASS in v1. Broken or missing records fail rather than pass. | `test_C8_*` |
-| C9 | Canonical encoding and record IDs match the frozen, language-neutral vectors. These cover duplicate keys, floats and number forms, Unicode (NFC, surrogates, invalid UTF-8), escaping, key order, whitespace, BOM, depth, domain separation, and schema rejections. Each reject vector must fail for its stated reason, not merely fail. The vectors' record IDs were cross-checked outside Python (`jq -cS` and `sha256sum`). | `test_C9_*`, `conformance/record-v1-vectors.json` |
+| C9 | Canonical encoding and record IDs match the frozen, language-neutral vectors. These cover duplicate keys, floats and number forms, Unicode (NFC, surrogates, invalid UTF-8), escaping, key order, whitespace, BOM, depth, domain separation, and schema rejections. Each reject vector must fail for its stated reason, not merely fail. Independently of Python, CI re-serializes every record-ID fixture with `jq -cSj` and recomputes its record ID and plain SHA-256 with `sha256sum`. | `test_C9_*`, `conformance/record-v1-vectors.json`, `ci/verify_record_ids.sh` |
 
 **Planted-defect sensitivity.** The harness [`tools/planted_defects.py`](tools/planted_defects.py)
 checks that the tests detect specific defects. It is a manual maintenance command and is not run in

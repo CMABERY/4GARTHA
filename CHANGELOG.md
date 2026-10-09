@@ -47,6 +47,8 @@ not establish, and [SPEC.md](SPEC.md) for the format.
 - Workflow token is read-only (`permissions: contents: read`).
 - CI does not invoke ledger derivation replay.
 - A new `Built-wheel tests` job runs the suite against the installed wheel.
+- `ci/verify_record_ids.sh` (step in `Ledger Integrity`) recomputes the record-ID fixtures without
+  Python (`jq -cSj` and `sha256sum`).
 
 ### Tooling
 
