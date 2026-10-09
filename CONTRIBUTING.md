@@ -15,8 +15,10 @@ must not describe a guarantee the code does not test.
 - `ledger/refs/**` is mutable (names for record IDs; no assurance).
 
 CI rejects modifications, deletions, renames and copies under the add-only paths, and any addition
-under `ledger/nodes/`. These are detection checks that run after a push lands. Until `main` is
-protected, they do not prevent a rewrite (ASSURANCE.md 5.7).
+under `ledger/nodes/`. `main` is protected by a ruleset that accepts changes only through a pull
+request with these checks passing, so a pull request that breaks these rules cannot be merged
+unless it also changes the checks. Admins can change the ruleset, so this is not a governance
+assurance (ASSURANCE.md 5.7).
 
 ## Local hardening
 
@@ -39,7 +41,8 @@ or `ledger/nodes/**`.
 3. `ledger verify <record ID>`, and if you trust the transform code, `ledger replay <record ID>`.
    Replay runs that code as your user without a sandbox.
 4. Optionally point a ref at the record (`ledger refs set <name> <record ID>`).
-5. Open a PR. CI will:
+5. Open a PR. `main` rejects direct pushes, and a PR can be merged only once the `Ledger Integrity`
+   and `Built-wheel tests` checks pass. CI will:
    - run the test suite, including the conformance suite
    - enforce the add-only rules
    - check new records and their whole lineage against the `integrity` profile. The admission gate
@@ -52,4 +55,5 @@ or `ledger/nodes/**`.
 Reviewers: a passing record gate establishes integrity only. Read new transform code yourself. CI
 does not replay it, and a replay that matches would not show the transform is honest (ASSURANCE.md
 5.3). Review changes under `.github/` and `tests/` with the same care: a PR can change the checks
-that judge it.
+that judge it. Branch protection does not require an approving review, so this review is the
+merge decision.

@@ -38,8 +38,8 @@ This repo contains two pieces of infrastructure:
 
 Content addressing makes it infeasible to change a record or artifact without changing its ID, so
 in-place modification is detected. It does not stop deletion or replacement, and it does not make
-history immutable. Preservation depends on repository controls that are not yet enforced (see
-"Governance" below).
+history immutable. Preservation depends on repository controls that admins can change and that
+nothing anchors externally (see "Governance" below).
 
 ## Directory layout
 
@@ -146,10 +146,15 @@ CI (`.github/workflows/ci.yml`, read-only token) on pull requests and pushes to 
 
 CI does not replay newly submitted ledger records as part of its admission gate. The test suite deliberately executes fixture transforms to test replay behavior. Pull-request builds, tests, and tools still execute contributor-controlled code and are not sandboxed.
 
-These checks *detect*. They do not *prevent*: they run after a push lands, and anyone with write
-access controls both history and CI. `main` currently has no branch protection, and the one
-ruleset is disabled. Governance is therefore reported NOT_CHECKED. Protecting `main` (required
-checks, no force-push) and external anchoring are open items: ASSURANCE.md sections 5.7 and 7.
+`main` is protected by a repository ruleset (`main-governance`, no bypass, admins included).
+Changes must be merged from a pull request with `Ledger Integrity` and `Built-wheel tests`
+passing, and force-pushes and deletion of `main` are rejected. On pull requests these checks
+therefore block the merge rather than only report afterwards.
+
+They still do not establish governance. Anyone with admin access can change or disable the
+ruleset, no approving review is required, and a pull request's checks run that pull request's own
+workflow and tests. Governance is therefore reported NOT_CHECKED. External anchoring and a signing
+policy are open items: ASSURANCE.md sections 5.7 and 7.
 
 ## Local hardening (pre-commit hook)
 
