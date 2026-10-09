@@ -47,3 +47,8 @@ not establish, and [SPEC.md](SPEC.md) for the format.
 - Workflow token is read-only (`permissions: contents: read`).
 - CI does not invoke ledger derivation replay.
 - A new `Built-wheel tests` job runs the suite against the installed wheel.
+
+### Tooling
+
+- `tools/planted_defects.py` is a manual, fail-closed planted-defect harness that measures test
+  sensitivity (ASSURANCE.md section 8). CI runs only its self-tests, not the full catalogue.

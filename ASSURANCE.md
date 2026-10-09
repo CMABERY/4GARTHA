@@ -94,7 +94,7 @@ Reference case: an unattested root verified the way CI verifies it (no replay). 
 | Provenance integrity | PASS | the record is canonical, schema-valid and bound to its ID |
 | Derivation verification | NOT_APPLICABLE | an admission claims no derivation |
 | Execution safety | NOT_CHECKED | nothing ran, and no boundary was checked |
-| Reproducibility | NOT_APPLICABLE | an admission claims no derivation, so there is nothing to reproduce |
+| Reproducibility | NOT_APPLICABLE | an admission claims no derivation, so there is nothing to reproduce. This says nothing about whether the artifact's original creation could be reproduced (5.5) |
 | Authenticity | NOT_CHECKED | the basis is an unattested statement |
 | Governance | NOT_CHECKED | no external anchoring exists |
 
@@ -241,6 +241,10 @@ current state and the requirements for a later version follow where they apply.
   so independent verifiers reach the same result.
 - **v1 status.** NOT_CHECKED whenever the lineage contains a derivation; NOT_APPLICABLE for
   admission-only lineages.
+  - Reproducibility is applicable only to lineages containing a derivation claim. An
+    admission-only lineage is NOT_APPLICABLE, regardless of whether replay was requested. This
+    status makes no claim about the independent reproducibility of the admitted artifact's
+    original creation.
   - `environment` is declared and integrity-checked but never used to build anything.
   - The runtime `python3` means "whatever interpreter the verifier runs", and its version is not
     recorded.
@@ -394,33 +398,60 @@ protections.
 | C1 | Root-node replay never reports that an unperformed derivation succeeded; unrequested replay is NOT_CHECKED; acceptability depends on the profile. The reference case (unattested root, integrity-only) produces exactly the table in section 3. | `test_C1_*` |
 | C2 | A record cannot select an arbitrary runner under the restricted policy, and the transform does not inherit the verifier's environment. Timeouts are ERROR. Execution is never reported as safe, and a satisfied `replay` profile still reports the failed safety assurance. | `test_C2_*` |
 | C3 | Different derivations (and admissions) of identical bytes have distinct record IDs; identical claims have the same ID. | `test_C3_*` |
-| C4 | Changing any identity-bearing field changes the record ID. The field list is derived from the schema, so a field added later without coverage fails. IDs are domain-separated. | `test_C4_*` |
+| C4 | Changing any identity-bearing field changes the record ID, both as the hash of the stored bytes and through the public `record_id()`. The field list is derived from the schema, so a field added later without coverage fails. IDs are domain-separated. | `test_C4_*` |
 | C5 | An unattested admission cannot satisfy `authenticated-admission`; records claiming unverifiable authenticity are rejected. | `test_C5_*` |
 | C6 | Passing repository controls (append-only check, record gate) do not yield governance assurance without external evidence. | `test_C6_*` |
 | C7 | No workflow invokes derivation replay; the CI token is read-only (top level, and no job grants write); the CI record gate executes nothing. | `test_C7_*` |
 | C8 | Every report covers all seven dimensions. Execution safety, reproducibility, authenticity and governance never PASS in v1. Broken or missing records fail rather than pass. | `test_C8_*` |
 | C9 | Canonical encoding and record IDs match the frozen, language-neutral vectors. These cover duplicate keys, floats and number forms, Unicode (NFC, surrogates, invalid UTF-8), escaping, key order, whitespace, BOM, depth, domain separation, and schema rejections. Each reject vector must fail for its stated reason, not merely fail. The vectors' record IDs were cross-checked outside Python (`jq -cS` and `sha256sum`). | `test_C9_*`, `conformance/record-v1-vectors.json` |
 
-The suite was checked against deliberately broken builds, with each defect planted separately. Every
-one made at least one conformance test fail:
+**Planted-defect sensitivity.** The harness [`tools/planted_defects.py`](tools/planted_defects.py)
+checks that the tests detect specific defects. It is a manual maintenance command and is not run in
+CI:
 
-- root replay reported PASS
-- any runtime permitted
-- verifier environment inherited
-- no domain tag
-- inputs or params excluded from the ID
-- governance, authenticity or execution safety reported PASS
-- schema accepting `runner` or a signature basis
-- `--replay`, a write token, or a job-level write grant in `ci.yml`
-- the gate replaying by default
-- unrequested replay reported PASS
-- canonicalization: floats accepted, NFC not enforced, duplicate keys accepted, non-ASCII escaped,
-  or the decoder's byte-for-byte round-trip check dropped
+```bash
+python tools/planted_defects.py                     # every catalogued defect, at HEAD
+python tools/planted_defects.py --rev <commit> --json result.json
+python tools/planted_defects.py --list              # the catalogue and each defect's expected tests
+```
+
+How it works:
+
+- **Per defect.** It plants one defect into a fresh copy of a *committed* revision (exported with
+  `git archive`), inside a temporary directory it owns. It never writes to the invoking working tree,
+  and it checks the tree before and after the run.
+- **Detection.** A defect counts as detected only if *every* test the catalogue names for it fails
+  with an assertion failure whose text matches the catalogued reason. A failure for any other reason
+  does not count.
+- **Fail-closed.** The result is FAIL if:
+  - a mutation does not apply exactly once
+  - an expected test is absent from the passing baseline
+  - `ledger` imports from anywhere other than the disposable copy
+  - pytest errors, times out or is interrupted
+  - the run is incomplete
+- **Output.** It writes a JSON result (revision, Python version, per-defect expected and observed
+  outcomes). It exits 0 only when the result is PASS.
+
+The catalogue covers these defects:
+
+- root or unrequested replay reported PASS
 - execution safety reported NOT_APPLICABLE when nothing ran
+- any runtime permitted, or the verifier's environment inherited
+- no or a changed domain tag, or inputs or params excluded from `record_id()`
+- governance, authenticity or execution safety reported PASS
 - a satisfied profile hiding a failed dimension
+- the schema admitting `runner` or a signature basis
+- `--replay`, a write token or a job-level write grant in `ci.yml`, or the gate replaying by default
+- canonicalization defects: floats accepted, NFC skipped, duplicate keys accepted, non-ASCII escaped,
+  the round-trip check dropped
+- cycles skipped
+- unchecked ref targets or derive inputs
 
-Planted-defect detection measures how sensitive the tests are. It is not a substitute for adversarial
-review.
+The harness's own fail-closed behavior runs in CI (`tests/test_planted_defects_harness.py`, against a
+synthetic repository). The full catalogue run does not.
+
+A PASS shows that the suite detects *these particular* defects. It does not show exhaustive security
+coverage, and it is not a substitute for adversarial review.
 
 **What tests cannot establish:** that a sandbox exists, that repository settings are configured, or
 that a given CI result came from an unmodified workflow. Those assurances stay NOT_CHECKED or FAIL

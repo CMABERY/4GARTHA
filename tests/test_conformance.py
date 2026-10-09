@@ -326,13 +326,19 @@ def _id_of(obj: dict) -> str:
 @pytest.mark.parametrize("base", _full_records(), ids=["admission", "derivation-env", "derivation-noenv"])
 def test_C4_changing_any_field_changes_the_record_id(base: dict) -> None:
     original = _id_of(base)
-    assert original == records.record_id(base)
+    original_api = records.record_id(base)
     mutated_paths = set()
     for path in _record_leaf_paths(base):
         m = copy.deepcopy(base)
         _set(m, path, _changed(_get(base, path)))
-        assert _id_of(m) != original, f"changing {path} did not change the record ID"
+        # Hash of the stored bytes (covers constant fields such as protocol)...
+        assert _id_of(m) != original, f"changing {path} did not change the record ID (stored bytes)"
+        # ...and the public ID function, for every mutation that is still a
+        # valid record, so record_id() itself cannot ignore a field.
+        if not records.validate(m):
+            assert records.record_id(m) != original_api, f"changing {path} did not change the record ID (record_id)"
         mutated_paths.add(tuple("[]" if isinstance(p, int) else p for p in path))
+    assert original_api == original, "record_id() disagrees with the hash of the stored canonical bytes"
 
     if base["kind"] == "derivation":
         for name, change in [
@@ -345,6 +351,8 @@ def test_C4_changing_any_field_changes_the_record_id(base: dict) -> None:
             change(m)
             if m["inputs"] != base["inputs"] or m["transform"] != base["transform"]:
                 assert _id_of(m) != original, name
+                if not records.validate(m):
+                    assert records.record_id(m) != original_api, name
 
     # Coverage guard: every field the schema allows for this kind was mutated,
     # so a field added to the schema later cannot escape this test. A null
@@ -479,7 +487,7 @@ def test_C7_workflows_do_not_replay_and_ci_token_is_read_only() -> None:
     for wf in workflows:
         code = "\n".join(_code_lines(wf))
         for forbidden in ("--replay", "ledger replay", "replay_new_nodes", "replay=True"):
-            assert forbidden not in code, f"{wf.name} executes transforms via {forbidden!r}"
+            assert forbidden not in code, f"{wf.name} invokes derivation replay via {forbidden!r}"
 
     ci = _code_lines(REPO / ".github" / "workflows" / "ci.yml")
     top = [i for i, l in enumerate(ci) if l.startswith("permissions:")]
