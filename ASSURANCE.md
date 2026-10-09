@@ -325,7 +325,10 @@ current state and the requirements for a later version follow where they apply.
     permissions, as the Pages workflows do. `ci.yml` declares `read` itself (C7). GitHub Actions
     is still allowed to approve pull requests; while the ruleset requires no approval, that grants
     nothing.
-  - Fork-PR workflow approval is required only for accounts new to GitHub.
+  - Fork-PR workflow approval is required for all outside contributors (set 2026-10-09; previously
+    only for accounts new to GitHub). Workflow runs on a pull request from anyone who is not a
+    collaborator wait until a maintainer approves them. Approving a run is not a review: the
+    approved run still executes the PR's code.
   - Commits pushed from the command line (for example `18e21d7` and `e8d2136`) are unsigned;
     web-UI commits and merges made on GitHub (for example `15887a4`) carry GitHub's signature. The
     ruleset does not require signed commits.
@@ -422,7 +425,8 @@ and execution-environment protections.
 - **What this does not cover.** Pull-request CI is not a sandbox. A PR's workflow run executes
   contributor-controlled code: `pip install` builds the PR's package, and `pytest` runs the PR's
   tests and tools. The mitigations are the read-only token, the absence of repository secrets, and
-  GitHub's fork-PR approval policy. A PR can also edit `ci.yml` and `tests/` themselves. C7 then
+  GitHub's fork-PR approval policy, which holds every outside contributor's runs for a maintainer's
+  approval (5.7). A PR can also edit `ci.yml` and `tests/` themselves. C7 then
   runs inside that PR's own suite, so it guards honest changes against regression. It is not a
   control against A1 or A4. Against A1 the control is the maintainer's review of `.github/`,
   `tests/` and `tools/` changes before merging. Branch protection (5.7) requires the checks to pass
@@ -432,8 +436,8 @@ and execution-environment protections.
   - Done 2026-10-09: `main` is protected by ruleset `main-governance`, with the `Ledger Integrity`
     and `Built-wheel tests` checks required and no bypass (5.7).
   - Done 2026-10-09: the default workflow token permission is `read` (5.7).
+  - Done 2026-10-09: workflow runs from all outside contributors require approval (5.7).
   - Do not enforce signed commits until the contribution workflow produces them.
-  - Consider requiring approval for all outside contributors' workflow runs.
 
 ## 8. Conformance index
 
