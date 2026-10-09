@@ -25,7 +25,8 @@ ledger = "ledger.cli:main"
 ledger = ["record.schema.json"]
 
 [tool.pytest.ini_options]
-# Non-overlapping roots: overlapping entries (e.g. "tests" and ".") make pytest
-# drop the root-level tests. tests/test_collection.py guards this.
-testpaths = ["tests", "test_memory_system.py"]
+# Tests live under tests/. A test module elsewhere must be listed here as a
+# non-overlapping root (e.g. "tests" and "." make pytest drop root-level tests).
+# tests/test_collection.py fails if any tracked test module is not collected.
+testpaths = ["tests"]
 python_files = ["test_*.py"]
