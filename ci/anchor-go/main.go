@@ -13,7 +13,9 @@
 // that the reference behaves as recorded, so a drift on either side fails.
 //
 // It fails closed: a missing section, a vector count below the expected
-// minimum, a vector it did not evaluate, or any mismatch exits non-zero.
+// minimum, a vector it did not evaluate, or any mismatch exits non-zero. It
+// also runs negative controls on every run: tampered or untrusted copies of the
+// example anchor log, and stored proofs without a policy, must all be rejected.
 //
 // With -anchors DIR it also checks a stored anchor log (ledger/anchors) the
 // same way: leaves.json parsed and the tree rebuilt with sigsum-go, every
@@ -99,11 +101,14 @@ type vectors struct {
 var (
 	failures int
 	checked  = map[string]int{}
+	quiet    bool // negative controls count failures without printing them
 )
 
 func fail(section, name, format string, args ...any) {
 	failures++
-	fmt.Printf("FAIL %s/%s: %s\n", section, name, fmt.Sprintf(format, args...))
+	if !quiet {
+		fmt.Printf("FAIL %s/%s: %s\n", section, name, fmt.Sprintf(format, args...))
+	}
 }
 
 func ok(section string) { checked[section]++ }
@@ -595,6 +600,72 @@ func checkAnchorLogVector(v *vectors, sigsumVerify, work string) {
 	checked[s] += n
 }
 
+// negativeControls runs the stored-anchor-log checker on evidence it must
+// reject. A checker that accepted any of these could not be trusted to have
+// checked anything, so each control that is not rejected is a failure.
+func negativeControls(v *vectors, work string) {
+	const s = "negative_controls"
+	al := v.AnchorLog
+	if al == nil {
+		fail(s, "-", "no anchor_log vector to build controls from")
+		return
+	}
+	materialize := func(name string, edit func(batch, file, content string) string) string {
+		dir := filepath.Join(work, "control-"+name)
+		for batch, files := range al.Batches {
+			os.MkdirAll(filepath.Join(dir, batch), 0o755)
+			for f, content := range files {
+				os.WriteFile(filepath.Join(dir, batch, f), []byte(edit(batch, f, content)), 0o644)
+			}
+		}
+		return dir
+	}
+	same := func(_, _, c string) string { return c }
+	first := ""
+	for batch := range al.Batches {
+		if first == "" || batch < first {
+			first = batch
+		}
+	}
+	controls := []struct {
+		name   string
+		dir    string
+		policy string
+	}{
+		{"stored-proof-without-policy", materialize("no-policy", same), ""},
+		{"tampered-record-id", materialize("leaves", func(b, f, c string) string {
+			if b == first && f == "leaves.json" { // change one hex digit of the first record ID
+				i := strings.Index(c, `"records":["`) + len(`"records":["`)
+				d := "0"
+				if c[i] == '0' {
+					d = "1"
+				}
+				return c[:i] + d + c[i+1:]
+			}
+			return c
+		}), al.Policy},
+		{"checkpoint-for-another-origin", materialize("checkpoint", func(b, f, c string) string {
+			if f == "checkpoint" {
+				return strings.Replace(c, "4gartha.test/anchor/1", "4gartha.test/anchor/2", -1)
+			}
+			return c
+		}), al.Policy},
+		{"quorum-raised-to-all", materialize("quorum", same), strings.Replace(al.Policy, "group quorum-rule 2 ", "group quorum-rule all ", 1)},
+	}
+	for _, c := range controls {
+		before := failures
+		quiet = true
+		checkAnchorLog(s, c.dir, c.policy, "", work)
+		quiet = false
+		if failures == before {
+			fail(s, c.name, "the checker accepted evidence it must reject")
+			continue
+		}
+		failures = before
+		ok(s)
+	}
+}
+
 func main() {
 	vectorsPath := flag.String("vectors", "", "conformance/anchor-v1-vectors.json")
 	sigsumVerify := flag.String("sigsum-verify", "", "path to the sigsum-verify binary (optional)")
@@ -633,6 +704,7 @@ func main() {
 	checkPolicies(&v)
 	checkProofs(&v, *sigsumVerify, work)
 	checkAnchorLogVector(&v, *sigsumVerify, work)
+	negativeControls(&v, work)
 	if *anchorsDir != "" {
 		policyText := ""
 		if *policyFile != "" {
@@ -650,7 +722,7 @@ func main() {
 	// Never report success without having evaluated every vector, and at least
 	// a minimum per section (a loop that silently ran zero times cannot pass).
 	minimum := map[string]int{"rfc6962": 9, "signed_note_example": 1, "anchor_tree": 36,
-		"checkpoints": 20, "policies": 23, "sigsum_proofs": 33, "anchor_log": 2}
+		"checkpoints": 20, "policies": 23, "sigsum_proofs": 33, "anchor_log": 2, "negative_controls": 4}
 	total := map[string]int{"checkpoints": len(v.Checkpoints), "policies": len(v.Policies), "sigsum_proofs": len(v.SigsumProofs)}
 	if *sigsumVerify != "" {
 		minimum["sigsum_verify_command"] = minimum["sigsum_proofs"]
@@ -664,7 +736,7 @@ func main() {
 			fail(section, "-", "checked %d of %d vectors", checked[section], want)
 		}
 	}
-	for _, section := range []string{"rfc6962", "signed_note_example", "anchor_tree", "checkpoints", "policies", "sigsum_proofs", "sigsum_verify_command", "anchor_log"} {
+	for _, section := range []string{"rfc6962", "signed_note_example", "anchor_tree", "checkpoints", "policies", "sigsum_proofs", "sigsum_verify_command", "anchor_log", "negative_controls"} {
 		if n, present := checked[section]; present {
 			fmt.Printf("ok   %-22s %d\n", section, n)
 		}

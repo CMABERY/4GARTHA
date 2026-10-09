@@ -12,8 +12,8 @@ summarizes them.
 This repo contains two pieces of infrastructure:
 
 1) **Ledger kernel**: content-addressed artifacts plus content-addressed *records* (claims about
-   artifacts: admissions and derivations), stored in Git. Format: [SPEC.md](SPEC.md),
-   `4gartha.record/1`.
+   artifacts: admissions and derivations), stored in Git, plus an anchor log of checkpoints that can
+   be logged externally. Format: [SPEC.md](SPEC.md), `4gartha.record/1` and `4gartha.anchor/1`.
 2) **Sprint-1 fencepost (Frozen)**: an executable verifier gate (`nre-verify-fixtures --all`).
 
 ## 1) Ledger kernel: what it does and does not establish
@@ -34,12 +34,14 @@ This repo contains two pieces of infrastructure:
 | Derivation verification | Verified by local replay on request |
 | Execution safety | **Not provided.** Replay runs transform code without a sandbox (FAIL when replay runs, NOT_CHECKED otherwise) |
 | Reproducibility | **Not provided.** NOT_CHECKED for lineages with a derivation; NOT_APPLICABLE for admission-only lineages |
-| Authenticity, governance | **Not provided.** Always reported NOT_CHECKED |
+| Authenticity | **Not provided.** Always reported NOT_CHECKED |
+| Governance | **Only with your own anchor policy, for anchored records.** PASS means the record's lineage is in a checkpoint signed by the policy's anchor key and logged in Sigsum under a witness quorum, no later than a stated time. NOT_CHECKED otherwise. Nothing is anchored yet (phase 2) |
 
 Content addressing makes it infeasible to change a record or artifact without changing its ID, so
 in-place modification is detected. It does not stop deletion or replacement, and it does not make
-history immutable. Preservation depends on repository controls that admins can change and that
-nothing anchors externally (see "Governance" below).
+history immutable. External anchoring (ASSURANCE.md 5.7) adds checkable evidence that anchored
+records were published by a time bound. It does not show that no later or conflicting history
+exists: that needs monitoring, which is not built yet (see "Governance" below).
 
 ## Directory layout
 
@@ -48,6 +50,7 @@ ledger/
   objects/            # artifacts, content-addressed (add-only)
   records/            # admission/derivation records, content-addressed (add-only)
   refs/               # mutable names for record IDs (no assurance)
+  anchors/            # anchor log: <tree size>/{leaves.json, checkpoint, sigsum.proof} (add-only)
   nodes/              # retired v0 location; must stay empty (CI rejects additions)
   schema/             # record JSON schema (copy of the packaged one)
 transforms/           # transform code (your domain logic)
@@ -88,6 +91,16 @@ pip install -r requirements.lock
 pip install -e . --no-deps
 ```
 
+The base package needs only `jsonschema`. Checking the signatures behind governance needs Ed25519,
+from the optional `anchor` extra (`requirements.lock` already includes it):
+
+```bash
+pip install 'epistemic-ledger[anchor]'      # or: pip install -e '.[anchor]'
+```
+
+Without it, every structural and hash check of the anchor log still runs, and governance reports
+NOT_CHECKED with that install hint.
+
 Admit an artifact (a root of evidence). The statement is your declared basis, recorded as
 *unattested*:
 
@@ -124,6 +137,29 @@ Every report lists all seven assurances. Replaying an admission reports
 profile still reports any failed dimension it does not require, for example
 `note: execution_safety is FAIL`. Exit status: 0 satisfied, 2 not satisfied, 3 inconclusive.
 
+Check governance against anchoring evidence. The policy is **your** file, naming the anchor key,
+Sigsum logs, witnesses and quorum you trust (SPEC.md, "Trust policy"). Nothing in the repository is
+used as a policy:
+
+```bash
+ledger verify <record ID> --profile governed --anchor-policy ~/my-anchor-policy
+ledger anchor verify --anchor-policy ~/my-anchor-policy   # the whole anchor log
+ledger anchor verify                                      # integrity only, no trust (what CI runs)
+```
+
+A PASS reports `anchored_no_later_than`, a time bounded by witness cosignatures. It is not when the
+record was created, and offline verification cannot rule out later or conflicting checkpoints
+(ASSURANCE.md 5.7).
+
+Anchoring (maintainer, on their own machine; phase 2 provides the production key and Sigsum setup):
+
+```bash
+ledger anchor create --key ~/.ssh/anchor_ed25519 --origin <origin>   # leaves.json + signed checkpoint
+ledger anchor body <size> > checkpoint.body
+sigsum-submit -k <anchor key> -p <sigsum policy> -o ledger/anchors/<size, 12 digits>/sigsum.proof checkpoint.body
+ledger anchor verify --anchor-policy <policy>   # must pass before committing: anchors are add-only
+```
+
 Name a record (the target must exist and pass the `integrity` profile; refs are mutable and are not
 evidence):
 
@@ -139,9 +175,14 @@ are gone. See [CHANGELOG.md](CHANGELOG.md).
 CI (`.github/workflows/ci.yml`, read-only token) on pull requests and pushes to `main`:
 
 - **Append-only check:** rejects modification, deletion, rename or copy under `ledger/objects/**`,
-  `ledger/records/**` and `ledger/nodes/**`.
+  `ledger/records/**`, `ledger/anchors/**` and `ledger/nodes/**`.
 - **Record gate:** applies the `integrity` profile to new records and their lineage, and rejects
-  malformed record paths and v0 node manifests. It does not replay them.
+  malformed record and anchor paths and v0 node manifests. It does not replay them.
+- **Anchor log integrity:** `ledger anchor verify`, with no policy. It checks structure and
+  contiguity, recomputes every root, checks that anchored records are present, and checks that
+  proofs include their checkpoints. CI cannot judge trust.
+- **Independent anchor check:** every anchoring vector and stored checkpoint root, checked with the
+  Sigsum reference implementation (sigsum-go v0.14.1, `sigsum-verify`) and Go's signed-note code.
 - **Built-wheel tests:** the suite runs again against the installed wheel.
 
 CI does not replay newly submitted ledger records as part of its admission gate. The test suite deliberately executes fixture transforms to test replay behavior. Pull-request builds, tests, and tools still execute contributor-controlled code and are not sandboxed.
@@ -152,11 +193,17 @@ passing, every new commit must carry a signature GitHub verifies, and force-push
 `main` are rejected. On pull requests these checks therefore block the merge rather than only
 report afterwards.
 
-They still do not establish governance. Anyone with admin access can change or disable the
-ruleset, no approving review is required, a pull request's checks run that pull request's own
-workflow and tests, and a commit signature identifies who signed a change, not whether it is
-sound. Governance is therefore reported NOT_CHECKED. External anchoring is an open item:
-ASSURANCE.md sections 5.7 and 7.
+These controls do not establish governance on their own:
+
+- anyone with admin access can change or disable the ruleset
+- no approving review is required
+- a pull request's checks run that pull request's own workflow and tests
+- a commit signature identifies who signed a change, not whether it is sound
+
+Governance can PASS only through external anchoring, verified against a policy you supply
+(ASSURANCE.md 5.7). The format, verifier and conformance tests exist (phase 1, with test keys). No
+production checkpoint has been logged yet (phase 2), so every committed record is NOT_CHECKED for
+now.
 
 ## Local hardening (pre-commit hook)
 
@@ -169,7 +216,7 @@ python tools/install_hooks.py
 
 This installs `.git/hooks/pre-commit` which:
 
-- rejects modify/delete/rename/copy under `ledger/objects/**`, `ledger/records/**` and `ledger/nodes/**`
+- rejects modify/delete/rename/copy under `ledger/objects/**`, `ledger/records/**`, `ledger/anchors/**` and `ledger/nodes/**`
 - runs `nre-verify-fixtures --all` when Sprint-1-relevant files are staged
 
 ## Root Entropy Commit Fixtures

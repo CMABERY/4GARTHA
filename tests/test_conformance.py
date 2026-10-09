@@ -1394,6 +1394,9 @@ def test_C10_ci_checks_anchor_integrity_and_runs_the_reference_implementation() 
     assert "-sigsum-verify" in script and "-anchors" in script
     gomod = (REPO / "ci" / "anchor-go" / "go.mod").read_text()
     assert "sigsum.org/sigsum-go v0.14.1" in gomod and "tool sigsum.org/sigsum-go/cmd/sigsum-verify" in gomod
+    gomain = (REPO / "ci" / "anchor-go" / "main.go").read_text()
+    assert "negativeControls(&v, work)" in gomain and '"negative_controls": 4' in gomain
+    assert "no -policy to verify it against" in gomain
     gosum = (REPO / "ci" / "anchor-go" / "go.sum").read_text()
     assert "sigsum.org/sigsum-go v0.14.1 h1:" in gosum
     assert "ledger/anchors/" in (REPO / "tools" / "check_append_only.py").read_text()

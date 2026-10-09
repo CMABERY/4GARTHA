@@ -1,4 +1,4 @@
-# Spec: ledger records, protocol `4gartha.record/1`
+# Spec: ledger records (`4gartha.record/1`) and anchor log (`4gartha.anchor/1`)
 
 This is the normative byte-level format. What a verifier may conclude from these bytes, and against
 whom, is defined in [ASSURANCE.md](ASSURANCE.md). Where this file and the conformance tests disagree,
@@ -156,12 +156,137 @@ isolated mode (`sys.executable -I`). See `transforms/concat_parents.py`.
   systems use exclusive create, which never clobbers but is not crash-atomic; a partial file then
   fails verification rather than passing. An entry that is not a valid copy of what it is named for
   is reported, never repaired.
+- `ledger/anchors/**` is add-only too. Every added path must be
+  `ledger/anchors/<12 digits>/{leaves.json,checkpoint,sigsum.proof}` (or `.keep`), and the anchor
+  log must pass `ledger anchor verify` (see "Anchor log" below).
 - `ledger/refs/**` holds mutable names for record IDs. Refs are a convenience: they carry no
   assurance and are not historical evidence. `ledger refs set` only accepts a target record that
   satisfies the `integrity` profile.
 - `ledger/nodes/` is the retired v0 manifest location (one manifest per *artifact*, which made a
   second derivation of the same bytes impossible). v0 was retired before any v0 node was committed.
   The directory stays empty and protected, and CI rejects additions to it.
+
+## Anchor log, protocol `4gartha.anchor/1`
+
+The anchor log commits to record IDs in a Merkle tree whose checkpoints can be logged outside the
+repository. What a verifier may conclude from it, and its limits, are in ASSURANCE.md 5.7. It is
+implemented in `src/ledger/anchor.py`. It is pinned by language-neutral vectors in
+[`conformance/anchor-v1-vectors.json`](conformance/anchor-v1-vectors.json) (C10), which CI also
+checks with the Sigsum reference implementation (`ci/verify_anchor_vectors.sh`).
+
+External specifications, pinned:
+
+| Specification | Version | Used for |
+| --- | --- | --- |
+| RFC 6962, section 2.1 | | tree hash and inclusion proofs |
+| C2SP `signed-note` | v1.1.0 | checkpoint signature lines and key IDs |
+| C2SP `tlog-checkpoint`, `tlog-cosignature` | v1.1.0 | checkpoint text; cosignature semantics |
+| Sigsum log protocol | "Stable version v1" (`log.md` at `3d7234dd`) | leaf, tree head and cosignature messages |
+| Sigsum proof format | version 2 (sigsum-go v0.14.1, `doc/sigsum-proof.md`) | `sigsum.proof` |
+| Sigsum policy format | sigsum-go v0.14.1, `doc/policy.md` | policy syntax |
+
+### Tree
+
+- **Leaf.** The 32 raw bytes of a record ID. Leaf hash `SHA-256(0x00 ‖ leaf)`, interior node
+  `SHA-256(0x01 ‖ left ‖ right)`. The tree hash is RFC 6962's MTH, which splits *n* leaves at the
+  largest power of two below *n*. The empty tree hashes to `SHA-256("")`. Record IDs are already
+  domain-separated (`4gartha.record/1\0`), and every leaf is exactly 32 bytes.
+- **Order.** Batches are appended in the order they are created. Within a batch the record IDs are
+  sorted ascending, which is the same order for hex and raw bytes. A record ID appears at most once
+  in the log. Log order need not follow lineage order: a child can precede its parent within a
+  batch. The verifier checks membership, never position.
+
+### Batches
+
+One directory per batch, `ledger/anchors/<tree size, 12 decimal digits>/`, so lexical order is
+log order. It contains exactly the following, all regular files (no symlinks, no subdirectories).
+`ledger/anchors/` holds only these directories and `.keep`.
+
+- **`leaves.json`** (required). The canonical encoding (above) of exactly
+  `{"previous_size": P, "protocol": "4gartha.anchor/1", "records": [...]}`.
+  - *P* is the tree size before this batch: 0 for the first batch, and otherwise the preceding
+    batch's size.
+  - `records` holds 1 to 65,536 record IDs, strictly ascending.
+  - The directory's size is *P* plus the number of records.
+- **`checkpoint`** (required). A C2SP signed note, UTF-8, with no control characters other than
+  newline.
+  - **Text.** Exactly three lines, each ending in `\n`:
+    - the origin: 1 to 255 bytes, with no spaces, `+` or control characters, and the same in
+      every checkpoint of the log
+    - the tree size in decimal, without leading zeros
+    - the root at that size, in canonical, padded standard base64
+
+    There are no extension lines.
+  - **Signatures.** After a blank line come 1 to 16 lines of the form
+    `— <key name> <base64(key ID ‖ signature)>`, in canonical base64.
+    - The anchor key's line has key name = origin and key ID
+      `SHA-256(origin ‖ 0x0A ‖ 0x01 ‖ public key)[:4]`, and carries an Ed25519 signature over the
+      text.
+    - Lines with any other key name or key ID are ignored, so later phases can add cosignatures.
+    - A second line with the same key name and key ID is malformed.
+- **`sigsum.proof`** (optional). A Sigsum proof, format version 2 exactly.
+  - **Message.** `SHA-256(checkpoint text)`: the note text, not the whole file, so signatures added
+    later do not change what was logged. `ledger anchor body <size>` prints that text, and
+    `sigsum-submit` hashes its input once to get the message.
+  - **Leaf.**
+    - checksum: `SHA-256(message)`
+    - signature: by the anchor key, over `sigsum.org/v1/tree-leaf ‖ 0x00 ‖ checksum`
+    - key hash: `SHA-256(anchor public key)`
+
+    The leaf hash is `SHA-256(0x00 ‖ checksum ‖ signature ‖ key hash)`.
+  - **Tree head.** The log signs `sigsum.org/v1/tree/<hex log key hash>\n<size>\n<base64 root>\n`.
+    A witness signs `cosignature/v1\ntime <timestamp>\n` followed by those same three lines.
+  - **Syntax, strict.**
+    - every line ends in `\n` (no CR)
+    - values are separated by single spaces
+    - integers are decimal, without leading zeros, at most 2⁶³−1
+    - hex may be either case, as on the Sigsum wire
+    - cosignature key hashes are distinct
+    - a tree of size 1 has no inclusion part
+
+`ledger anchor create` writes `leaves.json` and the signed `checkpoint` together, into a directory it
+creates exclusively. The operator adds `sigsum.proof` after submission. Once committed, nothing in a
+batch changes.
+
+### Trust policy `4gartha.anchor-policy/1`
+
+The verifier holds this file and passes it with `--anchor-policy`. The repository never supplies it.
+
+- **Syntax.** Sigsum policy syntax (sigsum-go v0.14.1, `doc/policy.md`):
+  - `log <hex key> [url]`
+  - `witness <name> <hex key> [url]`
+  - `group <name> <k|all|any> <member>...`
+  - `quorum <name>`
+  - `#` comments at the start of a line
+
+  It adds exactly one `anchor-origin <origin>` and exactly one `anchor-key <hex key>`. Keys are raw
+  32-byte Ed25519 public keys in hex. Names are opaque bytes.
+- **Stricter than Sigsum.**
+  - at least one log is required
+  - `quorum none` is refused, because a governance PASS always rests on witnesses
+  - small-order keys are refused
+  - CR is refused (sigsum-go strips it)
+  - thresholds must be decimal
+- **Use with Sigsum's tools.** Drop the two `anchor-` lines, and the rest is a Sigsum policy for
+  `sigsum-submit` and `sigsum-verify`.
+
+```
+anchor-origin example.org/ledger/anchor/1
+anchor-key    <64 hex>
+log           <64 hex>  https://log.example
+witness w1    <64 hex>
+witness w2    <64 hex>
+witness w3    <64 hex>
+group quorum-rule 2 w1 w2 w3
+quorum quorum-rule
+```
+
+**Time bound.** For a witness, its cosignature timestamp if the cosignature verifies. For a group of
+threshold *k*, the *k*-th smallest of its members' bounds, or none if fewer than *k* have one. The
+quorum's bound is *T*.
+
+Any change to this section (leaf encoding, tree, file formats, pinned Sigsum proof version) is a new
+anchor protocol: a new `protocol` value in `leaves.json` and, if the tree changes, a new origin.
 
 ## Versioning
 
