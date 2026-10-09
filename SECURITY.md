@@ -41,6 +41,7 @@ must not. For example:
   would not run yourself. The verifier reports `execution_safety: FAIL` whenever it does this
   (ASSURANCE.md 5.4).
 - **No authenticity or governance assurance.** Admissions are unattested statements, and repository
-  history is protected only by repository settings that are not yet enforced (ASSURANCE.md 5.6, 5.7).
+  history is protected only by a branch ruleset that the repository's admins can change, and
+  nothing anchors it externally (ASSURANCE.md 5.6, 5.7).
 - CI does not replay newly submitted ledger records as part of its admission gate. The test suite deliberately executes fixture transforms to test replay behavior. Pull-request builds, tests, and tools still execute contributor-controlled code and are not sandboxed. PR workflows run with a read-only token, subject to GitHub Actions' permissions and
   contributor approval policy. This is inherent to running CI on pull requests.

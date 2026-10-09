@@ -295,24 +295,37 @@ current state and the requirements for a later version follow where they apply.
 - **Controls that exist, and what they are:**
   - **Append-only check** (`tools/check_append_only.py`, in CI and the opt-in pre-commit hook).
     Detects modification, deletion, rename or copy under `ledger/objects/`, `ledger/records/` and
-    `ledger/nodes/` within a PR or pushed range. It runs after a push has landed: it reports a
-    rewrite but cannot prevent one.
+    `ledger/nodes/` within a PR or pushed range. On a PR it runs before merge, and branch
+    protection (below) blocks the merge if it fails. On a push to `main` it runs after the push
+    has landed and can only report.
   - **Record gate** (`tools/verify_new_records.py`, in CI). Applies the `integrity` profile to new
     records and their lineage, and rejects malformed record paths and legacy v0 manifests.
+  - **Branch protection** (repository ruleset `main-governance`, active since 2026-10-09, no bypass
+    actors, so it binds admins too). Changes to `main` must be merged from a pull request whose
+    `Ledger Integrity` and `Built-wheel tests` checks, reported by GitHub Actions, passed. Both
+    controls above run in `Ledger Integrity`. Force-pushes to `main` and its deletion are blocked.
+    No approving review is required, and a PR need not be up to date with `main`, so its checks
+    may have run against an older `main`. A PR's checks run that PR's own workflow and tests,
+    so A1 can make them pass by changing them (section 7). A4 can edit or disable the ruleset, and
+    nothing anchors its history externally.
 
-  These produce CI results, not evidence a verifier can check later, and A4 controls all of them.
-  They defend against honest mistakes and against A1 when maintainers act on their results. They do
-  not defend against A4.
-- **Repository state observed on 2026-10-08:**
-  - `main` has no branch protection.
-  - The only ruleset (`AGARTHIAN-SURVIVAL`: required signatures, pull requests, required deployments)
-    is disabled.
+  These produce CI results and repository settings, not evidence a verifier can check later, and
+  A4 controls all of them. They defend against honest mistakes, and against A1 when maintainers
+  review what they merge. They do not defend against A4.
+- **Repository state observed on 2026-10-09:**
+  - Ruleset `main-governance` is active on `refs/heads/main` as described above. Anyone can list
+    the rules in force without authenticating:
+    `curl -s https://api.github.com/repos/CMABERY/4GARTHA/rules/branches/main`. The classic
+    branch-protection endpoint still reports `main` as unprotected, because the rules come from
+    the ruleset.
+  - The older ruleset (`AGARTHIAN-SURVIVAL`: required signatures, pull requests, required
+    deployments) is disabled.
   - The repository's default workflow token permission is `write`; `ci.yml` overrides it to `read`
     for its own jobs.
   - Fork-PR workflow approval is required only for accounts new to GitHub.
-  - The latest pushed commit (`18e21d7`) is unsigned; earlier web-UI commits carry GitHub's
-    signature. Enabling `required_signatures` unchanged would block command-line pushes until
-    signing is set up.
+  - Commits pushed from the command line (for example `18e21d7` and `e8d2136`) are unsigned;
+    web-UI commits and merges made on GitHub (for example `15887a4`) carry GitHub's signature. The
+    ruleset does not require signed commits.
 - **Before PASS may be reported.** Requires all of:
   - External anchoring: periodic checkpoints that commit to the ledger's records (for example a
     Merkle root), signed and published to a log not controlled by A4, such as a transparency log or
@@ -408,11 +421,15 @@ and execution-environment protections.
   tests and tools. The mitigations are the read-only token, the absence of repository secrets, and
   GitHub's fork-PR approval policy. A PR can also edit `ci.yml` and `tests/` themselves. C7 then
   runs inside that PR's own suite, so it guards honest changes against regression. It is not a
-  control against A1 or A4. The control is review of `.github/` changes, enforced by branch
-  protection with required checks. That is a repository setting and is not configured (5.7).
-- **Owner actions recommended, not performed.** Repository settings are kept out of source PRs.
-  - Set the default workflow permission to read; other workflows rely on it.
-  - Protect `main` with the `Ledger Integrity` and `Built-wheel tests` checks required.
+  control against A1 or A4. Against A1 the control is the maintainer's review of `.github/`,
+  `tests/` and `tools/` changes before merging. Branch protection (5.7) requires the checks to pass
+  before any merge into `main`, but it does not require an approving review, and a PR's required
+  checks are produced by that PR's own workflow.
+- **Owner actions.** Repository settings are kept out of source PRs.
+  - Done 2026-10-09: `main` is protected by ruleset `main-governance`, with the `Ledger Integrity`
+    and `Built-wheel tests` checks required and no bypass (5.7).
+  - Recommended, not performed: set the default workflow permission to read; other workflows rely
+    on it.
   - Do not enforce signed commits until the contribution workflow produces them.
   - Consider requiring approval for all outside contributors' workflow runs.
 
@@ -503,7 +520,7 @@ until real controls exist, and the tests guarantee that the reports say so.
 | P1 | Artifact IDs separate from record IDs | Multiple derivations reference identical bytes without ambiguity | Done: `4gartha.record/1`, C3/C4/C9 |
 | P1 | Accurate README/CONTRIBUTING/SECURITY | No documentation claims a guarantee the implementation does not provide | Done (this revision) |
 | P2 | External governance anchoring | History independently checkable against an external commitment | Not started (5.7) |
-| P2 | Branch protection and signing policy | Required checks and signing work with the actual contribution workflow | Owner action (5.7, section 7) |
+| P2 | Branch protection and signing policy | Required checks and signing work with the actual contribution workflow | Branch protection done: ruleset `main-governance`, 2026-10-09 (5.7). Signing policy: owner action (section 7) |
 | Later | Isolated replay; enforced environments; attested admission | 5.4, 5.5 and 5.6 may report PASS | Not started |
 
 ## 10. Changing this contract
