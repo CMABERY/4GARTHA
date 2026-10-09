@@ -131,3 +131,50 @@ def test_multiple_steps_with_missing_node():
     success, error = critic.replay_and_verify(steps)
     assert not success
     assert error == "MISSING_MEMNODE"
+
+
+def test_mutating_inserted_node_cannot_change_stored_content():
+    """Finding 9: content stored under a hash must not change afterwards."""
+    from dataclasses import FrozenInstanceError
+
+    memory = MemoryStore()
+    parent = memory.put(MemNode(b"parent"))
+    node = MemNode(b"original", (parent,))
+    key = memory.put(node)
+
+    with pytest.raises(FrozenInstanceError):
+        node.data = b"changed"
+    with pytest.raises(FrozenInstanceError):
+        node.parents = ()
+
+    stored = memory.get(key)
+    assert stored.data == b"original"
+    assert stored.parents == (parent,)
+    with pytest.raises(FrozenInstanceError):
+        stored.data = b"changed"
+
+
+def test_mutable_inputs_are_snapshotted():
+    """bytearray data and list parents cannot be changed through the caller's references."""
+    memory = MemoryStore()
+    parent = memory.put(MemNode(b"parent"))
+    buf = bytearray(b"original")
+    parents = [parent]
+    key = memory.put(MemNode(buf, parents))
+
+    buf[:] = b"changed!"
+    parents.append("injected")
+
+    stored = memory.get(key)
+    assert stored.data == b"original" and isinstance(stored.data, bytes)
+    assert stored.parents == (parent,)
+    # The stored node still matches its address.
+    expected = sha256_bytes((sha256_bytes(b"original") + parent).encode("utf-8"))
+    assert key == expected
+
+
+def test_memnode_rejects_non_bytes_data_and_non_str_parents():
+    with pytest.raises(TypeError):
+        MemNode("text")
+    with pytest.raises(TypeError):
+        MemNode(b"x", (1,))

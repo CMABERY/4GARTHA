@@ -9,7 +9,7 @@
 # 5. Reconstruct canonical signed statement
 # 6. Verify RSA signature using OpenSSL
 # 7. Sanity-check no raw entropy committed
-# 8. Run ingest and assert node_id contract
+# 8. Run ingest and assert node_id contract + signature binding (record == signed bytes)
 # 9. Manual recompute (debug) - now uses canon.ids
 # 10. Check quote fields are empty (for noquote fixture)
 #
@@ -124,8 +124,12 @@ fi
 log_info "AK public key info:"
 head -20 ak_info.txt
 
-if ! grep -q "RSA Public-Key" ak_info.txt; then
+# Key-type-aware check: `openssl rsa -pubin` only loads RSA public keys, on
+# both OpenSSL 1.1 and 3.x. (The `-text` heading is display-only and differs:
+# 1.1 prints "RSA Public-Key:", 3.x prints "Public-Key:" for RSA and EC alike.)
+if ! openssl rsa -pubin -in ak.pem -noout > ak_rsa_check.txt 2>&1; then
     log_error "AK key is not RSA. Current code expects RSA keys."
+    cat ak_rsa_check.txt
     exit 1
 fi
 
@@ -158,9 +162,32 @@ log_step 5 "Reconstruct canonical signed statement bytes"
 export FIXTURE_JSON
 export REPO_ROOT
 
+# ingest_root_entropy.py (step 8) copies ak_pubkey_fp_sha256 and the quote hashes
+# from the fixture into the node record, while the statement below uses the
+# fingerprint of the actual AK and null quote hashes. Require them to agree so
+# the record whose node_id gets pinned is the record that was signed (re-checked
+# byte-for-byte after ingest in step 8). Quote hashes must be explicit null:
+# empty strings are rejected, not treated as null, because ingest copies them
+# verbatim and normalizing them would silently change the record and node_id.
+log_info "Checking no-quote metadata against the signed statement..."
+NOQUOTE_FILTER='
+  (if .ak_pubkey_fp_sha256 != $fp
+     then "ak_pubkey_fp_sha256 must equal the AK public key fingerprint \($fp) (got \(.ak_pubkey_fp_sha256 | tojson))"
+     else empty end),
+  (["tpm_quote_sha256", "tpm_quote_nonce_sha256"][] as $k
+     | select(.[$k] != null)
+     | "\($k) must be null for a no-quote fixture (got \(.[$k] | tojson))")'
+NOQUOTE_PROBLEMS="$(jq -r --arg fp "${AK_FP}" "${NOQUOTE_FILTER}" "${FIXTURE_JSON}")"
+if [ -n "${NOQUOTE_PROBLEMS}" ]; then
+    log_error "Inconsistent no-quote metadata: the ingested node record would differ from the signed statement"
+    echo "${NOQUOTE_PROBLEMS}" >&2
+    exit 1
+fi
+log_info "✓ No-quote metadata matches the signed statement"
+
 # Use the single canonicalizer in canon/ids.py to emit the exact bytes.
-# For noquote fixtures we must set the tpm_quote fields to null in the statement,
-# even if the fixture contains empty strings or other quote-related fields.
+# For noquote fixtures the statement carries null quote hashes; the check above
+# guarantees the fixture's quote hashes are null too, so ingest yields the same record.
 python3 - <<'PY'
 import json
 import os
@@ -232,11 +259,27 @@ fi
 # ============================================================================
 log_step 7 "Sanity-check that no raw entropy was committed"
 
+# entropy_length_bytes is required metadata (it is part of the signed statement
+# reconstructed in step 5), so it is the one exempt name, and only at the top
+# level and only as a positive integer: a length cannot carry entropy bytes.
+log_info "Validating entropy metadata..."
+if ! jq -e '(.entropy_length_bytes | type) == "number"
+            and .entropy_length_bytes == (.entropy_length_bytes | floor)
+            and .entropy_length_bytes > 0' "${FIXTURE_JSON}" >/dev/null; then
+    log_error "entropy_length_bytes must be a positive integer (got: $(jq -c '.entropy_length_bytes' "${FIXTURE_JSON}"))"
+    exit 1
+fi
+
 log_info "Checking for suspicious field names anywhere in the fixture..."
-# Reject any key anywhere matching sensitive names (case-insensitive)
-if jq -e '.. | objects | keys[]? | select(test("entropy|seed|random|raw"; "i"))' "${FIXTURE_JSON}" >/dev/null; then
+# Reject any other key anywhere matching sensitive names (case-insensitive).
+SUSPICIOUS_KEYS_FILTER='[paths
+    | select((.[-1] | type) == "string" and (.[-1] | test("entropy|seed|random|raw"; "i")))
+    | select(. != ["entropy_length_bytes"])
+    | map(tostring) | join(".")]'
+SUSPICIOUS_KEYS="$(jq -r "${SUSPICIOUS_KEYS_FILTER} | .[]" "${FIXTURE_JSON}")"
+if [ -n "${SUSPICIOUS_KEYS}" ]; then
     log_error "Suspicious field name suggests raw entropy leakage"
-    jq -r '.. | objects | keys[]? | select(test("entropy|seed|random|raw"; "i"))' "${FIXTURE_JSON}"
+    echo "${SUSPICIOUS_KEYS}"
     exit 1
 fi
 
@@ -265,6 +308,33 @@ if ! python3 "${REPO_ROOT}/ci/assert_node_id.py" ingest_out.json "${FIXTURE_NODE
     log_error "assert_node_id.py failed"
     exit 1
 fi
+
+# The pinned node_id only proves consistency with the ingested record. Bind it to
+# the signature: the record's canonical bytes must be exactly the statement bytes
+# verified in step 6, i.e. the signature verifies over the ingested record itself.
+log_info "Asserting the ingested node record is exactly the signed statement..."
+if ! python3 - <<'PY'
+import json
+import os
+import sys
+from pathlib import Path
+
+sys.path.insert(0, os.environ["REPO_ROOT"])
+from canon.ids import canon_json_bytes
+
+with open("ingest_out.json", "r", encoding="utf-8") as f:
+    record_bytes = canon_json_bytes(json.load(f)["node_record"])
+signed_bytes = Path("statement.bin").read_bytes()
+if record_bytes != signed_bytes:
+    print("ingested node_record: " + record_bytes.decode("utf-8"), file=sys.stderr)
+    print("signed statement    : " + signed_bytes.decode("utf-8"), file=sys.stderr)
+    sys.exit(1)
+PY
+then
+    log_error "Ingested node record does not match the signed statement; the signature does not cover the pinned node_id"
+    exit 1
+fi
+log_info "✓ Signature covers the ingested node record (canonical bytes identical)"
 
 # ============================================================================
 # Step 9: Manual recompute (debug verification) - use canonicalizer to avoid drift
@@ -332,6 +402,7 @@ log_info "━━━━━━━━━━━━━━━━━━━━━━━�
 log_info ""
 log_info "The fixture is self-consistent and safe to commit:"
 log_info "  - Signature verified against AK public key"
+log_info "  - Signed statement is exactly the ingested node record"
 log_info "  - No raw entropy present"
 log_info "  - Node ID contract verified"
 log_info ""

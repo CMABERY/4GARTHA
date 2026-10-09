@@ -2,13 +2,21 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
+from contextlib import nullcontext
 from pathlib import Path
 from typing import Any, Dict
+
+from .cas import CasPaths, sha256_file, sha256_bytes, store_blob, verify_existing_object
 from .locks import ingest_session_lock, ingest_session_lock_enabled
-
-
-from .cas import CasPaths, sha256_file, sha256_bytes, store_blob
-from .manifest import Node, Transform, write_node_manifest
+from .manifest import (
+    Node,
+    Transform,
+    is_node_id,
+    node_manifest_path,
+    validate_manifest,
+    write_node_manifest,
+)
 from .replay import replay_node
 from .verify import verify_node, verify_reachable
 
@@ -33,46 +41,85 @@ def cmd_hash(args: argparse.Namespace) -> int:
 def cmd_ingest(args: argparse.Namespace) -> int:
     repo_root = repo_root_from_cwd()
     src = Path(args.path)
-    if not src.exists():
+    if not src.is_file():
         raise SystemExit(f"no such file: {src}")
 
-    artifact_id = sha256_file(src)
-    cas = CasPaths.from_repo_root(repo_root)
-    store_blob(src, cas, artifact_id)
+    # Validate all inputs before touching the ledger, so a rejected ingest
+    # leaves no orphaned objects behind.
+    parents = list(args.parent or [])
+    for pid in parents:
+        if not is_node_id(pid):
+            raise SystemExit(f"invalid --parent {pid!r}: expected 64 lowercase hex chars")
 
-    # Transform digest: by default hash the provided transform string (stable identifier),
-    # OR if a file path is provided via --transform-file, hash that file's bytes.
+    if args.env_digest is not None and not is_node_id(args.env_digest):
+        raise SystemExit(f"invalid --env-digest {args.env_digest!r}: expected 64 lowercase hex chars")
+
+    tf: Path | None = None
     if args.transform_file:
         tf = Path(args.transform_file)
-        if not tf.exists():
+        if not tf.is_file():
             raise SystemExit(f"no such transform file: {tf}")
-        transform_digest = sha256_file(tf)
-        # Store transform definition in the CAS so it can be replayed by digest.
-        store_blob(tf, cas, transform_digest)
-        transform_name = args.transform or tf.name
-    else:
-        transform_name = args.transform or "unspecified"
-        transform_digest = sha256_bytes(transform_name.encode("utf-8"))
 
     params: Dict[str, Any] = {}
     if args.params_json:
-        params = json.loads(args.params_json)
+        try:
+            params = json.loads(args.params_json)
+        except ValueError as e:
+            raise SystemExit(f"--params-json is not valid JSON: {e}")
         if not isinstance(params, dict):
             raise SystemExit("--params-json must decode to a JSON object")
 
-    node = Node(
-        id=artifact_id,
-        parents=args.parent or [],
-        transform=Transform(
-            name=transform_name,
-            digest=transform_digest,
-            params=params,
-            runner=args.runner,
-            env_digest=args.env_digest,
-        ),
-        meta={"note": args.note} if args.note else None,
-    )
-    write_node_manifest(repo_root, node)
+    lock_enabled = ingest_session_lock_enabled(cli_no_session_lock=bool(args.no_session_lock))
+    # The whole ingest transaction (hash, CAS writes, manifest existence check
+    # and create) runs under the repo-wide session lock.
+    with ingest_session_lock(repo_root) if lock_enabled else nullcontext():
+        artifact_id = sha256_file(src)
+        if artifact_id in parents:
+            raise SystemExit(f"refusing to ingest {artifact_id}: a node cannot be its own parent")
+
+        cas = CasPaths.from_repo_root(repo_root)
+        try:
+            # Transform digest: by default hash the provided transform string (stable identifier),
+            # OR if a file path is provided via --transform-file, hash that file's bytes.
+            if tf is not None:
+                transform_digest = sha256_file(tf)
+                transform_name = args.transform or tf.name
+            else:
+                transform_name = args.transform or "unspecified"
+                transform_digest = sha256_bytes(transform_name.encode("utf-8"))
+
+            node = Node(
+                id=artifact_id,
+                parents=parents,
+                transform=Transform(
+                    name=transform_name,
+                    digest=transform_digest,
+                    params=params,
+                    runner=args.runner,
+                    env_digest=args.env_digest,
+                ),
+                meta={"note": args.note} if args.note else None,
+            )
+            problems = validate_manifest(node.to_dict(), artifact_id)
+            if problems:
+                raise ValueError("invalid node manifest: " + "; ".join(problems))
+            if node_manifest_path(repo_root, artifact_id).exists():
+                raise FileExistsError(f"Node manifest already exists: {node_manifest_path(repo_root, artifact_id)}")
+
+            # Check any objects already stored under these digests before
+            # writing anything, so a corrupt CAS entry is rejected without
+            # leaving new objects or a manifest behind.
+            verify_existing_object(cas, artifact_id)
+            if tf is not None:
+                verify_existing_object(cas, transform_digest)
+
+            store_blob(src, cas, artifact_id)
+            if tf is not None:
+                # Store transform definition in the CAS so it can be replayed by digest.
+                store_blob(tf, cas, transform_digest)
+            write_node_manifest(repo_root, node)
+        except (FileExistsError, ValueError) as e:
+            raise SystemExit(f"ingest failed: {e}")
 
     print(artifact_id)
     return 0
@@ -102,6 +149,8 @@ def cmd_replay(args: argparse.Namespace) -> int:
     repo_root = repo_root_from_cwd()
     wd = Path(args.workdir).resolve() if args.workdir else None
     r = replay_node(repo_root, args.id, workdir=wd, keep=args.keep)
+    if r.workdir is not None and (args.keep or wd is not None):
+        print(f"workdir: {r.workdir}", file=sys.stderr)
     if r.ok:
         print("OK")
         return 0
@@ -109,33 +158,47 @@ def cmd_replay(args: argparse.Namespace) -> int:
         print(e)
     return 2
 
+def ref_path(repo_root: Path, name: str) -> Path:
+    """Map a ref name to a file under ledger/refs/, rejecting anything that
+    escapes that directory (absolute paths, '..', symlinks pointing outside)
+    or lands in immutable ledger storage."""
+    # Fix the boundary *before* following symlinks below it: resolving
+    # ledger/refs itself would let a symlinked refs root (e.g. refs -> nodes)
+    # move the boundary onto immutable manifests. Only ledger/ is resolved, so
+    # a symlinked ledger directory keeps refs/nodes/objects as siblings.
+    ledger_dir = (repo_root / "ledger").resolve()
+    refs_dir = ledger_dir / "refs"
+    if refs_dir.is_symlink():
+        raise SystemExit(f"refusing to use refs: {refs_dir} is a symlink")
+    if refs_dir.exists() and not refs_dir.is_dir():
+        raise SystemExit(f"refusing to use refs: {refs_dir} is not a directory")
+    if not name or "\0" in name:
+        raise SystemExit(f"invalid ref name: {name!r}")
+    candidate = Path(name)
+    if candidate.is_absolute() or candidate.drive or ".." in candidate.parts:
+        raise SystemExit(f"invalid ref name: {name!r} (must be a relative path inside ledger/refs)")
+    target = (refs_dir / candidate).resolve()
+    if target == refs_dir or not target.is_relative_to(refs_dir):
+        raise SystemExit(f"invalid ref name: {name!r} (resolves outside ledger/refs)")
+    # Converse aliasing (e.g. ledger/nodes -> refs): never write into storage.
+    for protected in ("nodes", "objects"):
+        if target.is_relative_to((ledger_dir / protected).resolve()):
+            raise SystemExit(f"invalid ref name: {name!r} (resolves into immutable ledger/{protected})")
+    return target
+
 def cmd_refs_set(args: argparse.Namespace) -> int:
     repo_root = repo_root_from_cwd()
-    refp = repo_root / "ledger" / "refs" / args.name
+    refp = ref_path(repo_root, args.name)
     refp.parent.mkdir(parents=True, exist_ok=True)
     refp.write_text(args.id.strip() + "\n", encoding="utf-8")
     return 0
 
 def cmd_refs_get(args: argparse.Namespace) -> int:
     repo_root = repo_root_from_cwd()
-    refp = repo_root / "ledger" / "refs" / args.name
-    if not refp.exists():
+    refp = ref_path(repo_root, args.name)
+    if not refp.is_file():
         raise SystemExit(f"missing ref: {refp}")
     print(refp.read_text(encoding="utf-8").strip())
-    return 0
-def _do_ingest() -> str:
-        # existing ingest logic that ends with:
-        # write_node_manifest(repo_root, node)
-        # return artifact_id
-    return artifact_id
-
-    if ingest_session_lock_enabled(cli_no_session_lock=bool(getattr(args, "no_session_lock", False))):
-        with ingest_session_lock(repo_root):
-            artifact_id = _do_ingest()
-    else:
-        artifact_id = _do_ingest()
-
-    print(artifact_id)
     return 0
 
 def build_parser() -> argparse.ArgumentParser:
@@ -157,10 +220,10 @@ def build_parser() -> argparse.ArgumentParser:
         help="Replay runner command prefix (repeatable), e.g. --runner python3 --runner -I.",
     )
     p_ing.add_argument(
-    "--no-session-lock",
-    action="store_true",
-    help="Disable repo-wide ingest-session lock (not recommended).",
-)
+        "--no-session-lock",
+        action="store_true",
+        help="Disable repo-wide ingest-session lock (not recommended).",
+    )
 
     p_ing.add_argument(
         "--env-digest",
@@ -197,12 +260,12 @@ def build_parser() -> argparse.ArgumentParser:
     p_rep.add_argument("id")
     p_rep.add_argument(
         "--workdir",
-        help="Optional directory to materialize inputs/output (useful for debugging).",
+        help="Directory in which a fresh run directory is created and kept (useful for debugging).",
     )
     p_rep.add_argument(
         "--keep",
         action="store_true",
-        help="Keep the workdir (when using an auto-temp dir) after replay.",
+        help="Keep the auto-created temp run directory after replay.",
     )
     p_rep.set_defaults(fn=cmd_replay)
 

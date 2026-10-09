@@ -22,6 +22,10 @@ The artifact bytes live at:
   - `params` (object): canonical parameters (semantic)
 - `meta` (object): non-semantic metadata (timestamps, notes, etc.)
 
+Manifests are validated against `ledger/schema/node.schema.json` (packaged with the verifier as
+`src/ledger/node.schema.json`), `id` must equal the digest the manifest is stored under, and a node
+may not list itself as a parent. Missing fields are errors, never defaults.
+
 ## Truth boundary
 
 Semantic validity (weak) requires only:
@@ -59,4 +63,9 @@ Replay succeeds iff `sha256(out.bin) == node.id`.
 Notes:
 
 - Root/admission nodes (no parents) have no derivation to replay.
+- Before executing anything, replay checks that the transform definition, the environment description
+  (if any) and every parent blob hash to their declared digests.
+- Each replay runs in a fresh, empty run directory (created inside `--workdir` when given), so only
+  output produced by that run is checked.
+- `verify-reachable` rejects cycles and replays only after the whole reachable graph passes integrity checks.
 - Replay executes code; run it only inside an appropriate sandbox for your threat model.

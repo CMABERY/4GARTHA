@@ -18,8 +18,12 @@ Each fixture consists of two files:
 
 These fixtures are generated with TPM quote disabled (`ENABLE_QUOTE=0`):
 - Contains TPM-signed statement but no TPM quote/attestation
-- Quote-related fields (`tpm_quote_msg_base64`, `tpm_quote_sig_base64`, etc.) are empty or null
+- Quote evidence fields (`tpm_quote_msg_base64`, `tpm_quote_sig_base64`, `tpm_quote_pcrs_base64`) are empty or null
 - Signature is raw RSA signature bytes (tpm2_sign with `-f plain`)
+- `ak_pubkey_fp_sha256` must equal the SHA-256 of the AK public key's DER encoding, and
+  `tpm_quote_sha256` / `tpm_quote_nonce_sha256` must be generated as explicit `null`. Empty strings are
+  rejected: ingest copies these fields verbatim, and the ingested node record must be byte-for-byte the
+  signed statement, so the pinned node_id is covered by the signature
 
 ## Verification
 
@@ -98,6 +102,14 @@ python3 ci/assert_node_id.py /tmp/ingest.json commit-fixtures/commit_noquote.nod
 - Ensure signature is raw bytes (`tpm2_sign -f plain`)
 - Verify statement.bin matches exactly what was signed
 - Check that AK public key matches the signing key
+
+### Inconsistent No-Quote Metadata
+
+- Regenerate the fixture with the real AK fingerprint and explicit `null` quote hashes (never `""`)
+- Regenerate the pinned ID from that record:
+  `python3 ingest_root_entropy.py commit-fixtures/<name>.json | jq -r .node_id > commit-fixtures/<name>.node_id`
+- Re-run `bash ci/verify_commit_fixture.sh <name>`: it verifies the signature over exactly those canonical
+  record bytes. If step 6 then fails, the generator signed different bytes and the statement must be re-signed
 
 ### Node ID Mismatch
 

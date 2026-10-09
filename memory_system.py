@@ -11,15 +11,25 @@ def sha256_bytes(b: bytes) -> str:
     return hashlib.sha256(b).hexdigest()
 
 
-@dataclass
+@dataclass(frozen=True)
 class MemNode:
-    """Memory node with data and parent references."""
+    """Immutable memory node with data and parent references.
+
+    Frozen, and inputs are snapshotted (bytes-like data copied to ``bytes``,
+    parents copied to a tuple of ``str``) so content stored under a hash can
+    never change through a reference the caller still holds.
+    """
     data: bytes
-    parents: Tuple[str, ...]
-    
-    def __init__(self, data: bytes, parents: Tuple[str, ...] = ()):
-        self.data = data
-        self.parents = parents
+    parents: Tuple[str, ...] = ()
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.data, (bytes, bytearray, memoryview)):
+            raise TypeError(f"MemNode.data must be bytes-like, got {type(self.data).__name__}")
+        parents = tuple(self.parents)
+        if not all(isinstance(p, str) for p in parents):
+            raise TypeError("MemNode.parents must contain only str hashes")
+        object.__setattr__(self, "data", bytes(self.data))
+        object.__setattr__(self, "parents", parents)
 
 
 class MemoryStore:
@@ -33,6 +43,9 @@ class MemoryStore:
         
         Hash is computed as: sha256(data_hash + parent_hashes)
         """
+        # Store a fresh immutable snapshot (also covers MemNode subclasses or
+        # duck-typed nodes that could otherwise be mutated after insertion).
+        node = MemNode(node.data, node.parents)
         data_hash = sha256_bytes(node.data)
         # Compute combined hash: data_hash concatenated with all parent hashes
         combined = data_hash.encode('utf-8')

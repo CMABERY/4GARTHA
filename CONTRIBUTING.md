@@ -26,4 +26,4 @@ The hook blocks any staged modify/delete/rename/copy under `ledger/nodes/**` or 
 3. Open a PR. CI will:
    - lint + test
    - enforce append-only invariants
-   - (optional) replay new derived nodes when configured for your threat model
+   - verify new nodes and all reachable ancestors, then replay new derived nodes (when configured for your threat model)

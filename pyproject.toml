@@ -20,6 +20,12 @@ dev = [
 [project.scripts]
 ledger = "ledger.cli:main"
 
+[tool.setuptools.package-data]
+# Node manifest schema used by ledger.verify / ledger.replay (copy of ledger/schema/node.schema.json).
+ledger = ["node.schema.json"]
+
 [tool.pytest.ini_options]
-testpaths = ["tests", "."]
+# Non-overlapping roots: overlapping entries (e.g. "tests" and ".") make pytest
+# drop the root-level tests. tests/test_collection.py guards this.
+testpaths = ["tests", "test_memory_system.py"]
 python_files = ["test_*.py"]

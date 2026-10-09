@@ -4,6 +4,8 @@ import argparse
 import subprocess
 import sys
 
+from _gitdiff import diff_name_status
+
 PROTECTED_PREFIXES = ("ledger/objects/", "ledger/nodes/")
 
 
@@ -11,27 +13,7 @@ def _touches_protected(paths: list[str]) -> bool:
     return any(p.startswith(PROTECTED_PREFIXES) for p in paths)
 
 
-def _parse_name_status_line(line: str) -> tuple[str, list[str]]:
-    """Parse a single `git diff --name-status` line.
-
-    Expected formats (tab-delimited):
-      - "M\tpath"
-      - "A\tpath"
-      - "D\tpath"
-      - "R100\told\tnew" (rename)
-      - "C100\told\tnew" (copy)
-    """
-    parts = line.rstrip("\n").split("\t")
-    if len(parts) < 2:
-        # Extremely defensive: fall back to whitespace split.
-        parts = line.split()
-    status = parts[0]
-    paths = [p for p in parts[1:] if p]
-    return status, paths
-
 def main() -> int:
-    # In CI on GitHub Actions, base SHA is available in GITHUB_BASE_REF context only for PRs.
-    # We'll diff against origin/<base> when present; otherwise diff against HEAD~1.
     # This script is deliberately conservative: it rejects any *modification* or *deletion*
     # within protected prefixes.
     #
@@ -39,11 +21,20 @@ def main() -> int:
     #   A  ledger/objects/...
     #   A  ledger/nodes/...
     # Anything else within those prefixes => fail.
-
-    # Determine diff range.
-    # If running in a PR checkout, 'origin/<base>' exists.
+    #
+    # Paths come from `git diff --name-status -z`, so names containing tabs,
+    # newlines or quotes are compared verbatim (never as Git's quoted form).
     ap = argparse.ArgumentParser(description="Enforce add-only invariant for ledger/nodes and ledger/objects")
-    ap.add_argument("base_ref", nargs="?", help="Base ref for diff range <base_ref>...HEAD")
+    ap.add_argument(
+        "base_ref",
+        nargs="?",
+        help="Base commit/tree. Default range is <base_ref>...HEAD (changes since the merge-base); default base HEAD~1.",
+    )
+    ap.add_argument(
+        "--direct",
+        action="store_true",
+        help="Compare <base_ref> and HEAD directly (git diff <base_ref> HEAD). Use for push ranges and the empty tree.",
+    )
     ap.add_argument(
         "--cached",
         action="store_true",
@@ -51,30 +42,18 @@ def main() -> int:
     )
     args = ap.parse_args()
 
-    if args.cached and args.base_ref:
-        print("error: pass either base_ref OR --cached, not both", file=sys.stderr)
+    if args.cached and (args.base_ref or args.direct):
+        print("error: pass either base_ref [--direct] OR --cached, not both", file=sys.stderr)
         return 3
 
-    if args.cached:
-        diff_cmd = ["git", "diff", "--cached", "--name-status"]
-    else:
-        if args.base_ref:
-            diff_range = f"{args.base_ref}...HEAD"
-        else:
-            diff_range = "HEAD~1...HEAD"
-        diff_cmd = ["git", "diff", "--name-status", diff_range]
-
     try:
-        out = subprocess.check_output(diff_cmd, text=True)
-    except Exception as e:
+        entries = diff_name_status(args.base_ref, cached=args.cached, direct=args.direct)
+    except (OSError, subprocess.CalledProcessError, ValueError) as e:
         print(f"failed running git diff: {e}", file=sys.stderr)
         return 3
 
     bad: list[tuple[str, list[str]]] = []
-    for line in out.splitlines():
-        if not line.strip():
-            continue
-        status, paths = _parse_name_status_line(line)
+    for status, paths in entries:
         status_code = status[:1]  # e.g. "R" from "R100"
 
         if _touches_protected(paths):
@@ -90,9 +69,9 @@ def main() -> int:
         print("append-only invariant violated (nodes/objects must be add-only):", file=sys.stderr)
         for status, paths in bad:
             if len(paths) == 1:
-                print(f"  {status}\t{paths[0]}", file=sys.stderr)
+                print(f"  {status}\t{paths[0]!r}", file=sys.stderr)
             else:
-                joined = "\t".join(paths)
+                joined = "\t".join(repr(p) for p in paths)
                 print(f"  {status}\t{joined}", file=sys.stderr)
         return 2
 
