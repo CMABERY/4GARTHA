@@ -1175,13 +1175,13 @@ needs_posix_permissions = pytest.mark.skipif(
 
 
 @contextmanager
-def _unreadable(path: Path) -> Iterator[None]:
-    mode = path.stat().st_mode & 0o777
-    path.chmod(0)
+def _unreadable(path: Path, mode: int = 0) -> Iterator[None]:
+    old = path.stat().st_mode & 0o777
+    path.chmod(mode)
     try:
         yield
     finally:
-        path.chmod(mode)
+        path.chmod(old)
 
 
 @needs_ed25519
@@ -1249,9 +1249,9 @@ def test_C10_a_contradiction_outranks_an_unreadable_file(tmp_path: Path, unread:
 @needs_ed25519
 @needs_posix_permissions
 def test_C10_a_proof_that_omits_its_checkpoint_outranks_an_unreadable_file(tmp_path: Path) -> None:
-    # The hash-only contradiction: with another batch's checkpoint unreadable,
-    # integrity cannot check inclusion, but the checkpoint's own evaluation
-    # does, so the result is FAIL, not ERROR.
+    # The hash-only contradiction. Inclusion needs only the batch's own
+    # checkpoint and proof, so another batch's unreadable checkpoint does not
+    # stop integrity from checking it: FAIL, not ERROR.
     root, a, d, size = anchored_repo(tmp_path / "repo")
     admit(root, b"later")
     s2 = anchor_batch(root)
@@ -1259,11 +1259,180 @@ def test_C10_a_proof_that_omits_its_checkpoint_outranks_an_unreadable_file(tmp_p
     _tampered_path(root, size, A.parse_sigsum_proof((batch_dir(root, size) / A.PROOF_FILE).read_bytes()))
     with _unreadable(batch_dir(root, s2) / A.CHECKPOINT_FILE):
         audit = A.audit(root, policy())
-        assert A.integrity_outcome(audit).status is S.ERROR
+        assert A.integrity_outcome(audit).status is S.FAIL
         assert [t.status for t in audit.trust] == [S.FAIL, S.ERROR]
         assert A.trust_outcome(audit).status is S.FAIL
         oc = _gov(check(root, d, anchor_policy=policy()))
         assert oc.status is S.FAIL and any("does not lead to the root hash" in p for p in oc.problems), oc
+
+
+# Partial audits. Each check runs when its own inputs were read; roots are
+# recomputed only through the known prefix of leaves. Two logged batches: the
+# first holds a and d, the second holds `later`, which is the governance target
+# (its lineage is only itself, so damage to a or d leaves its integrity PASS).
+
+
+def _two_batches(tmp_path: Path) -> Tuple[Path, str, str, int, int]:
+    root, a, d, s1 = anchored_repo(tmp_path / "repo")
+    later = admit(root, b"later")
+    s2 = anchor_batch(root)
+    log_batch(root, s2)
+    return root, a, later, s1, s2
+
+
+def _leaves(root: Path, *sizes: int) -> List[str]:
+    return [rid for s in sizes for rid in A.parse_leaves((batch_dir(root, s) / A.LEAVES_FILE).read_bytes())[1]]
+
+
+def _signed_logged_batch(root: Path, size: int, previous: int, rids: List[str], leaves: List[str]) -> None:
+    """A third batch, signed by the trusted key and logged, over ``leaves``."""
+    bdir = batch_dir(root, size)
+    bdir.mkdir()
+    (bdir / A.LEAVES_FILE).write_bytes(A.leaves_document(previous, rids))
+    tree = A.Tree()
+    for rid in leaves:
+        tree.append(A.leaf_hash(A.record_leaf(rid)))
+    (bdir / A.CHECKPOINT_FILE).write_bytes(A.signed_checkpoint(ORIGIN, size, tree.root(), K["anchor"].signer))
+    log_batch(root, size)
+
+
+def _first_wrong_root(root: Path, a: str, s1: int, s2: int):
+    (batch_dir(root, s1) / A.CHECKPOINT_FILE).write_bytes(A.signed_checkpoint(ORIGIN, s1, bytes(32), K["anchor"].signer))
+    log_batch(root, s1)                                        # signed and logged, for the wrong root
+    return "does not match the root", ["FAIL", "ERROR"]
+
+
+def _first_wrong_tree_size(root: Path, a: str, s1: int, s2: int):
+    (batch_dir(root, s1) / A.CHECKPOINT_FILE).write_bytes(A.signed_checkpoint(ORIGIN, s1 + 1, bytes(32), K["anchor"].signer))
+    log_batch(root, s1)
+    return "checkpoint is for tree size", ["FAIL", "ERROR"]
+
+
+def _first_omitted_from_proof(root: Path, a: str, s1: int, s2: int):
+    _tampered_path(root, s1, A.parse_sigsum_proof((batch_dir(root, s1) / A.PROOF_FILE).read_bytes()))
+    return "does not lead to the root hash", ["FAIL", "ERROR"]
+
+
+def _first_record_missing(root: Path, a: str, s1: int, s2: int):
+    records.record_path(root, a).unlink()
+    return f"anchored record {a}", ["FAIL", "ERROR"]
+
+
+def _third_repeats_a_record(root: Path, a: str, s1: int, s2: int):
+    # Found from batches 1 and 3 alone, whatever batch 2 holds.
+    leaves = _leaves(root, s1, s2)
+    _signed_logged_batch(root, s2 + 1, s2, [a], leaves + [a])
+    return f"record {a} was already anchored", ["PASS", "ERROR", "FAIL"]
+
+
+def _third_skips_a_leaf(root: Path, a: str, s1: int, s2: int):
+    # Found from batch 3's leaves.json and batch 2's directory name alone.
+    extra = admit(root, b"after a gap")
+    leaves = _leaves(root, s1, s2)
+    _signed_logged_batch(root, s2 + 2, s2 + 1, [extra], leaves + [extra])
+    return "batches must be contiguous", ["PASS", "ERROR", "FAIL"]
+
+
+@needs_ed25519
+@needs_posix_permissions
+@pytest.mark.parametrize("contradiction, unreadable", [
+    (_first_wrong_root, A.PROOF_FILE),
+    (_first_wrong_root, A.CHECKPOINT_FILE),
+    (_first_wrong_root, A.LEAVES_FILE),
+    (_first_wrong_tree_size, A.LEAVES_FILE),
+    (_first_omitted_from_proof, A.CHECKPOINT_FILE),
+    (_first_record_missing, "."),
+    (_third_repeats_a_record, A.LEAVES_FILE),
+    (_third_skips_a_leaf, A.LEAVES_FILE),
+], ids=["root-proof", "root-checkpoint", "root-leaves", "tree-size-leaves", "inclusion-checkpoint",
+        "missing-record-directory", "duplicate-leaves", "gap-leaves"])
+def test_C10_a_partial_audit_fails_on_a_contradiction_in_what_it_read(tmp_path: Path, contradiction,
+                                                                       unreadable: str) -> None:
+    # The second batch's file (or directory) is unreadable. A contradiction
+    # whose inputs were all read is still found: FAIL > ERROR. The checkpoint
+    # whose own checks found it is FAIL; the unreadable batch's is ERROR.
+    root, a, later, s1, s2 = _two_batches(tmp_path)
+    reason, statuses = contradiction(root, a, s1, s2)
+    pol = write_policy(tmp_path / "verifier" / "anchor-policy")
+    with _unreadable(batch_dir(root, s2) / unreadable):
+        proc = run_cli(root, "anchor", "verify", "--anchor-policy", str(pol), "--json")
+        doc = json.loads(proc.stdout)
+        assert (doc["integrity"]["status"], doc["trust"]["status"]) == ("FAIL", "FAIL"), doc
+        assert any(reason in p for p in doc["integrity"]["problems"]), doc["integrity"]
+        assert any("cannot" in p for p in doc["integrity"]["problems"]), "the read error is still reported"
+        assert [c["status"] for c in doc["checkpoints"]] == statuses, doc["checkpoints"]
+        assert proc.returncode == 2, proc.stderr     # FAIL, and no required check is ERROR
+        audit = A.audit(root, policy())
+        assert (A.integrity_outcome(audit).status, A.trust_outcome(audit).status) == (S.FAIL, S.FAIL)
+        oc = _gov(check(root, later, anchor_policy=policy()))
+        assert oc.status is S.FAIL and any(reason in p for p in oc.problems), oc
+
+
+@needs_ed25519
+@needs_posix_permissions
+@pytest.mark.parametrize("unreadable", [A.LEAVES_FILE, "."], ids=["leaves", "directory"])
+@pytest.mark.parametrize("second_root", ["correct", "wrong"])
+def test_C10_a_partial_audit_does_not_conclude_past_what_it_could_not_read(tmp_path: Path, second_root: str,
+                                                                            unreadable: str) -> None:
+    # The second checkpoint's root covers the first batch's leaves. With those
+    # unreadable it cannot be recomputed, so that checkpoint is ERROR: never
+    # PASS, although its own files are intact, and never FAIL, even when its
+    # root is in fact wrong. Nothing is inferred across what was not read.
+    root, a, later, s1, s2 = _two_batches(tmp_path)
+    if second_root == "wrong":
+        (batch_dir(root, s2) / A.CHECKPOINT_FILE).write_bytes(
+            A.signed_checkpoint(ORIGIN, s2, bytes(32), K["anchor"].signer))
+        log_batch(root, s2)
+    pol = write_policy(tmp_path / "verifier" / "anchor-policy")
+    with _unreadable(batch_dir(root, s1) / unreadable):
+        audit = A.audit(root, policy())
+        assert [t.status for t in audit.trust] == [S.ERROR, S.ERROR]
+        second = audit.trust[1].reasons
+        for check_name in ("root", "uniqueness"):
+            assert any(r.startswith(f"{check_name} not checked:") and A.batch_name(s1) in r for r in second), second
+        assert (A.integrity_outcome(audit).status, A.trust_outcome(audit).status) == (S.ERROR, S.ERROR)
+        proc = run_cli(root, "anchor", "verify", "--anchor-policy", str(pol), "--json")
+        doc = json.loads(proc.stdout)
+        assert (doc["integrity"]["status"], doc["trust"]["status"]) == ("ERROR", "ERROR"), doc
+        assert [c["status"] for c in doc["checkpoints"]] == ["ERROR", "ERROR"]
+        assert proc.returncode == 3, proc.stderr
+        oc = _gov(check(root, later, anchor_policy=policy()))
+        assert oc.status is S.ERROR, oc
+
+
+@needs_ed25519
+def test_C10_no_root_is_compared_past_a_contradiction(tmp_path: Path) -> None:
+    # A batch that skips a leaf makes the leaves after it ambiguous. A later
+    # batch, contiguous with it and signed and logged, is not recomputed: its
+    # checkpoint is NOT_CHECKED (prevented by the earlier failure), not PASS.
+    root, a, later, s1, s2 = _two_batches(tmp_path)
+    _third_skips_a_leaf(root, a, s1, s2)
+    s3 = s2 + 2
+    last = admit(root, b"after the gap")
+    _signed_logged_batch(root, s3 + 1, s3, [last], _leaves(root, s1, s2, s3) + [last])
+    audit = A.audit(root, policy())
+    assert [t.status for t in audit.trust] == [S.PASS, S.PASS, S.FAIL, S.NOT_CHECKED]
+    assert any(r.startswith("root not checked:") and "does not continue the log" in r for r in audit.trust[3].reasons)
+    assert A.integrity_outcome(audit).status is S.FAIL
+    assert _gov(check(root, last, anchor_policy=policy())).status is S.FAIL
+
+
+@needs_ed25519
+@needs_posix_permissions
+def test_C10_anchor_entries_that_cannot_be_examined_block_every_check(tmp_path: Path) -> None:
+    # ledger/anchors can be listed but not searched: every entry's name is
+    # known, nothing about it is. Each holds its place as a possible batch,
+    # so no check is inferred across it.
+    root, a, later, s1, s2 = _two_batches(tmp_path)
+    pol = write_policy(tmp_path / "verifier" / "anchor-policy")
+    with _unreadable(A.anchors_dir(root), 0o444):
+        proc = run_cli(root, "anchor", "verify", "--anchor-policy", str(pol), "--json")
+        doc = json.loads(proc.stdout)
+        assert (doc["integrity"]["status"], doc["trust"]["status"]) == ("ERROR", "ERROR"), doc
+        assert [c["status"] for c in doc["checkpoints"]] == ["ERROR", "ERROR"]
+        assert all(any("could not be examined" in r for r in c["reasons"]) for c in doc["checkpoints"])
+        assert proc.returncode == 3, proc.stderr
+        assert _gov(check(root, later, anchor_policy=policy())).status is S.ERROR
 
 
 @needs_ed25519

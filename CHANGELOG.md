@@ -29,9 +29,15 @@ with public test keys and a test-only Sigsum log. Nothing has been anchored in p
   - `anchored_no_later_than` is the integer bound.
   - `anchored_no_later_than_utc` is its UTC form, or null after 9999-12-31T23:59:59Z (Sigsum
     timestamps go up to 2⁶³−1).
-- **Unreadable anchor files** make integrity ERROR. `ledger anchor verify --json` then reports
-  ERROR for each affected checkpoint. A contradiction in the files that were read is still FAIL,
-  for each checkpoint, for the whole log and for governance.
+- **Partial audits.** An unreadable anchor file or directory makes integrity ERROR, never a
+  crash, but every check whose own inputs were read still runs.
+  - Roots are recomputed through the known prefix of leaves and no further.
+  - A contradiction among the files that were read is FAIL: for its checkpoint, for integrity,
+    for the whole log's trust, and for governance.
+  - A checkpoint that depends on unread files is ERROR, never PASS, and never FAIL from what was
+    not read.
+  - `ledger anchor verify --json` lists every checkpoint with a policy, even when integrity FAILs,
+    with each check that could not run and why.
 - **Conformance C10, and `conformance/anchor-v1-vectors.json`.** The vectors are reproducible with
   `tools/anchor_fixtures.py`, and include RFC 6962 known answers and the C2SP signed-note example.
 - **The optional `anchor` extra** (`cryptography`). The base install stays `jsonschema`-only.
@@ -55,6 +61,9 @@ with public test keys and a test-only Sigsum log. Nothing has been anchored in p
 
 ### Tooling
 
+- Planted defects M52 and M53 re-plant the partial-audit defects from the follow-up review:
+  structural checks abandoned when any batch is not sound, and a checkpoint PASS inferred from
+  the absence of errors. M34 and M49 now target the restructured code.
 - Planted defects M47 to M51 re-plant the defects found in implementation review of anchoring:
   oversized decimals crashing, an unreadable checkpoint crashing, UTC formatting crashing on a
   valid time bound, and whole-log trust putting ERROR before FAIL.

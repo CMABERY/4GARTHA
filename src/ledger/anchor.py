@@ -863,19 +863,53 @@ def parse_leaves(data: bytes) -> Tuple[int, Tuple[str, ...]]:
     return prev, tuple(rids)
 
 
+# Structural checks (ASSURANCE.md 5.7, step 3). Every batch records each one
+# as PASS, FAIL, ERROR (an input could not be read), NOT_CHECKED (an input is
+# missing or inconsistent, so the check could not run) or NOT_APPLICABLE. A
+# check that was never recorded counts as NOT_CHECKED: nothing is taken as
+# checked because no error was reported.
+BATCH_FILES = (LEAVES_FILE, CHECKPOINT_FILE, PROOF_FILE)
+BATCH_CHECKS = ("files", "contiguity", "uniqueness", "checkpoint size", "root", "inclusion", "records")
+LOG_CHECKS = ("entries", "origin")
+_SEVERITY = (Status.FAIL, Status.ERROR, Status.NOT_CHECKED)
+Cause = Tuple[Status, str]   # why an input is not available: ERROR (not read) or NOT_CHECKED (missing or invalid)
+
+
+def _worst(statuses) -> Status:
+    """FAIL > ERROR > NOT_CHECKED > PASS. NOT_APPLICABLE counts as PASS."""
+    present = set(statuses)
+    return next((s for s in _SEVERITY if s in present), Status.PASS)
+
+
 @dataclass
 class Batch:
     name: str
     size: int
+    known: bool = True    # False: an entry with a batch's name that could not be examined
+    listed: bool = False  # its directory was listed
     previous_size: Optional[int] = None
-    records: Tuple[str, ...] = ()
+    records: Optional[Tuple[str, ...]] = None   # None: leaves.json was not read, or is not valid
     note: Optional[Note] = None
     body: Optional[CheckpointBody] = None
     proof: Optional[SigsumProof] = None
     has_proof_file: bool = False
     inclusion_problem: Optional[str] = None
-    sound: bool = False   # every file present and well-formed
-    errors: List[str] = field(default_factory=list)   # this batch's directory or files could not be read
+    sound: bool = False   # every file present, readable and well-formed
+    errors: List[str] = field(default_factory=list)   # read errors: its directory, files or records
+    fail: List[str] = field(default_factory=list)     # contradictions found in this batch
+    unavailable: Dict[str, Cause] = field(default_factory=dict)   # file -> why it is not available
+    checks: Dict[str, Status] = field(default_factory=dict)       # BATCH_CHECKS -> status
+    blocked: List[str] = field(default_factory=list)              # checks that could not run, and why
+
+    def check(self, name: str, status: Status) -> None:
+        self.checks[name] = status
+
+    def block(self, name: str, cause: Cause) -> None:
+        self.checks[name] = cause[0]
+        self.blocked.append(f"{name} not checked: {cause[1]}")
+
+    def cause(self, fname: str) -> Cause:
+        return self.unavailable.get(fname, (Status.NOT_CHECKED, f"{fname} of batch {self.name} is not available"))
 
 
 @dataclass
@@ -900,14 +934,21 @@ class CheckpointTrust:
 @dataclass
 class Audit:
     batches: List[Batch] = field(default_factory=list)
-    positions: Dict[str, int] = field(default_factory=dict)
-    size: int = 0
+    positions: Dict[str, int] = field(default_factory=dict)   # record ID -> leaf index, in the known prefix
+    size: int = 0   # leaves in the known prefix: the whole log when integrity passes
     origin: Optional[str] = None
     fail: List[str] = field(default_factory=list)
     error: List[str] = field(default_factory=list)
     policy: Optional[AnchorPolicy] = None
     crypto: bool = False
     trust: List[CheckpointTrust] = field(default_factory=list)
+    checks: Dict[str, Status] = field(default_factory=dict)   # LOG_CHECKS -> status
+    blocked: List[str] = field(default_factory=list)
+
+
+def _batch_fail(a: Audit, b: Batch, reason: str) -> None:
+    b.fail.append(reason)
+    a.fail.append(f"anchor batch {b.name}: {reason}")
 
 
 def _read_error(a: Audit, b: Optional[Batch], message: str) -> None:
@@ -916,164 +957,282 @@ def _read_error(a: Audit, b: Optional[Batch], message: str) -> None:
         b.errors.append(message)
 
 
-def _read_regular(path: Path, limit: int, a: Audit, label: str, b: Optional[Batch] = None) -> Optional[bytes]:
+def _unavailable(b: Batch, files: Sequence[str], cause: Cause) -> None:
+    for f in files:
+        b.unavailable.setdefault(f, cause)
+
+
+def _read_regular(path: Path, limit: int, a: Audit, b: Batch, fname: str) -> Optional[bytes]:
+    label = f"anchor batch {b.name}/{fname}"
+    unread = (Status.ERROR, f"{fname} of batch {b.name} could not be read")
     try:
         st = os.lstat(path)
     except OSError as e:
         _read_error(a, b, f"{label}: cannot stat: {e}")
+        _unavailable(b, [fname], unread)
         return None
-    if not stat.S_ISREG(st.st_mode):
-        a.fail.append(f"{label}: not a regular file")
-        return None
-    if st.st_size > limit:
-        a.fail.append(f"{label}: exceeds {limit} bytes")
+    problem = ("not a regular file" if not stat.S_ISREG(st.st_mode)
+               else f"exceeds {limit} bytes" if st.st_size > limit else None)
+    if problem:
+        _batch_fail(a, b, f"{fname}: {problem}")
+        _unavailable(b, [fname], (Status.NOT_CHECKED, f"{fname} of batch {b.name} is not valid"))
         return None
     try:
         return path.read_bytes()
     except OSError as e:
         _read_error(a, b, f"{label}: cannot read: {e}")
+        _unavailable(b, [fname], unread)
         return None
 
 
 def _scan(repo_root: Path, a: Audit) -> None:
+    """Read and parse every anchor file, keeping what could not be read (ERROR)
+    apart from what is missing or malformed (FAIL)."""
     adir = anchors_dir(repo_root)
     try:
         st = os.lstat(adir)
     except FileNotFoundError:
+        a.checks["entries"] = Status.PASS
         return  # no anchor log: nothing has been anchored
     except OSError as e:
         a.error.append(f"ledger/anchors: cannot stat: {e}")
+        a.checks["entries"] = Status.ERROR
         return
     if not stat.S_ISDIR(st.st_mode):
         a.fail.append("ledger/anchors is not a directory")
+        a.checks["entries"] = Status.FAIL
         return
     try:
         names = sorted(os.listdir(adir))
     except OSError as e:
         a.error.append(f"ledger/anchors: cannot list: {e}")
+        a.checks["entries"] = Status.ERROR
         return
+    entries: List[Status] = []
     for name in names:
         path = adir / name
         try:
             mode = os.lstat(path).st_mode
         except OSError as e:
-            a.error.append(f"ledger/anchors/{name}: cannot stat: {e}")
+            message = f"ledger/anchors/{name}: cannot stat: {e}"
+            entries.append(Status.ERROR)
+            if BATCH_NAME_RE.fullmatch(name) is None:
+                a.error.append(message)
+                continue
+            # Perhaps a batch: keep its place, so that nothing is inferred across it.
+            b = Batch(name, int(name), known=False)
+            a.batches.append(b)
+            _read_error(a, b, message)
+            _unavailable(b, BATCH_FILES, (Status.ERROR, f"entry {name} could not be examined"))
+            b.check("files", Status.ERROR)
             continue
         if name == KEEP_FILE and stat.S_ISREG(mode):
             continue
         if BATCH_NAME_RE.fullmatch(name) is None or not stat.S_ISDIR(mode):
             a.fail.append(f"ledger/anchors/{name!r}: unexpected entry (only .keep and <12-digit tree size>/ directories)")
+            entries.append(Status.FAIL)
             continue
-        size = int(name)
-        b = Batch(name, size)
+        b = Batch(name, int(name))
         a.batches.append(b)
-        label = f"anchor batch {name}"
-        if size == 0:
-            a.fail.append(f"{label}: tree size 0 (a batch adds at least one record)")
-            continue
-        try:
-            files = sorted(os.listdir(path))
-        except OSError as e:
-            _read_error(a, b, f"{label}: cannot list: {e}")
-            continue
-        extra = [f for f in files if f not in (LEAVES_FILE, CHECKPOINT_FILE, PROOF_FILE)]
-        missing = [f for f in (LEAVES_FILE, CHECKPOINT_FILE) if f not in files]
-        for f in extra:
-            a.fail.append(f"{label}: unexpected file {f!r}")
-        for f in missing:
-            a.fail.append(f"{label}: missing {f}")
-        ok = not extra and not missing
-        if LEAVES_FILE in files:
-            data = _read_regular(path / LEAVES_FILE, MAX_LEAVES_BYTES, a, f"{label}/{LEAVES_FILE}", b)
-            if data is None:
-                ok = False
-            else:
-                try:
-                    b.previous_size, b.records = parse_leaves(data)
-                except FormatError as e:
-                    a.fail.append(f"{label}: {e}")
-                    ok = False
-                else:
-                    if b.previous_size + len(b.records) != size:
-                        a.fail.append(f"{label}: previous_size {b.previous_size} plus {len(b.records)} record(s) "
-                                      f"is not the directory's tree size {size}")
-                        ok = False
-        if CHECKPOINT_FILE in files:
-            data = _read_regular(path / CHECKPOINT_FILE, MAX_CHECKPOINT_BYTES, a, f"{label}/{CHECKPOINT_FILE}", b)
-            if data is None:
-                ok = False
-            else:
-                try:
-                    b.note = parse_note(data)
-                    b.body = parse_checkpoint_body(b.note.text)
-                except FormatError as e:
-                    a.fail.append(f"{label}: checkpoint: {e}")
-                    ok = False
-        if PROOF_FILE in files:
-            b.has_proof_file = True
-            data = _read_regular(path / PROOF_FILE, MAX_PROOF_BYTES, a, f"{label}/{PROOF_FILE}", b)
-            if data is None:
-                ok = False
-            else:
-                try:
-                    b.proof = parse_sigsum_proof(data)
-                except FormatError as e:
-                    a.fail.append(f"{label}: sigsum.proof: {e}")
-                    ok = False
-        b.sound = ok
+        _scan_batch(a, b, path)
+    a.checks["entries"] = _worst(entries)
     a.batches.sort(key=lambda b: b.size)
 
 
-def _check_structure(repo_root: Path, a: Audit, check_records: bool) -> None:
-    if not a.batches or not all(b.sound for b in a.batches):
-        if a.batches and not a.fail and not a.error:
-            a.fail.append("anchor log is malformed")
-        return
-    expected = 0
-    for b in a.batches:
-        if b.previous_size != expected:
-            a.fail.append(f"anchor batch {b.name}: previous_size {b.previous_size}, but the log before it ends at "
-                          f"size {expected} (batches must be contiguous)")
-        expected = b.size
-        for i, rid in enumerate(b.records):
-            if rid in a.positions:
-                a.fail.append(f"anchor batch {b.name}: record {rid} was already anchored at leaf {a.positions[rid]}")
+def _scan_batch(a: Audit, b: Batch, path: Path) -> None:
+    if b.size == 0:
+        _batch_fail(a, b, "tree size 0 (a batch adds at least one record)")
+        _unavailable(b, BATCH_FILES, (Status.NOT_CHECKED, f"batch {b.name} is not valid"))
+    else:
+        try:
+            files = sorted(os.listdir(path))
+        except OSError as e:
+            _read_error(a, b, f"anchor batch {b.name}: cannot list: {e}")
+            _unavailable(b, BATCH_FILES, (Status.ERROR, f"batch {b.name} could not be listed"))
+        else:
+            b.listed = True
+            _scan_files(a, b, path, files)
+    b.sound = b.listed and not b.fail and not b.errors
+    b.check("files", Status.FAIL if b.fail else Status.ERROR if b.errors else Status.PASS)
+
+
+def _scan_files(a: Audit, b: Batch, path: Path, files: Sequence[str]) -> None:
+    for f in files:
+        if f not in BATCH_FILES:
+            _batch_fail(a, b, f"unexpected file {f!r}")
+    for f in (LEAVES_FILE, CHECKPOINT_FILE):
+        if f not in files:
+            _batch_fail(a, b, f"missing {f}")
+            _unavailable(b, [f], (Status.NOT_CHECKED, f"batch {b.name} has no {f}"))
+    if LEAVES_FILE in files:
+        data = _read_regular(path / LEAVES_FILE, MAX_LEAVES_BYTES, a, b, LEAVES_FILE)
+        if data is not None:
+            try:
+                b.previous_size, b.records = parse_leaves(data)
+            except FormatError as e:
+                _batch_fail(a, b, str(e))
+                _unavailable(b, [LEAVES_FILE], (Status.NOT_CHECKED, f"{LEAVES_FILE} of batch {b.name} is not valid"))
             else:
-                a.positions[rid] = (b.previous_size or 0) + i
-    if a.fail:
-        return  # positions and roots would not be meaningful
-    a.size = a.batches[-1].size
+                if b.previous_size + len(b.records) != b.size:
+                    _batch_fail(a, b, f"previous_size {b.previous_size} plus {len(b.records)} record(s) "
+                                      f"is not the directory's tree size {b.size}")
+    if CHECKPOINT_FILE in files:
+        data = _read_regular(path / CHECKPOINT_FILE, MAX_CHECKPOINT_BYTES, a, b, CHECKPOINT_FILE)
+        if data is not None:
+            try:
+                b.note = parse_note(data)
+                b.body = parse_checkpoint_body(b.note.text)
+            except FormatError as e:
+                _batch_fail(a, b, f"checkpoint: {e}")
+                _unavailable(b, [CHECKPOINT_FILE], (Status.NOT_CHECKED, f"{CHECKPOINT_FILE} of batch {b.name} is not valid"))
+    if PROOF_FILE in files:
+        b.has_proof_file = True
+        data = _read_regular(path / PROOF_FILE, MAX_PROOF_BYTES, a, b, PROOF_FILE)
+        if data is not None:
+            try:
+                b.proof = parse_sigsum_proof(data)
+            except FormatError as e:
+                _batch_fail(a, b, f"sigsum.proof: {e}")
+                _unavailable(b, [PROOF_FILE], (Status.NOT_CHECKED, f"{PROOF_FILE} of batch {b.name} is not valid"))
+
+
+def _check_structure(repo_root: Path, a: Audit, check_records: bool) -> None:
+    """Every structural check whose inputs were read (ASSURANCE.md 5.7, step 3).
+
+    A check that needs only one batch's files runs whenever they were read.
+    Roots are recomputed only through the known prefix: the batches, from the
+    first, whose leaves were all read and are valid and contiguous. A root
+    beyond it is never compared, so it is neither PASS nor FAIL: it is ERROR if
+    the prefix ends at something unreadable, NOT_CHECKED if at a contradiction
+    (which is itself a FAIL). Missing leaves are never assumed."""
     tree = Tree()
-    origins = set()
+    prefix: Optional[Cause] = None     # why the leaves are not known from here on; None while they are
+    earlier: Optional[Cause] = None    # why an earlier batch's records are not known
+    first: Dict[str, str] = {}         # record ID -> the first batch that lists it
+    origins: Dict[str, str] = {}
+    origin_cause: Optional[Cause] = None
+    pred: Optional[Batch] = None
     for b in a.batches:
-        for rid in b.records:
-            tree.append(leaf_hash(record_leaf(rid)))
-        assert b.body is not None and b.note is not None
-        origins.add(b.body.origin)
-        root = tree.root()
-        # parse_checkpoint_body admits only the canonical text, so equal fields
-        # mean the note text is exactly checkpoint_body(origin, size, root).
-        if b.body.size != b.size:
-            a.fail.append(f"anchor batch {b.name}: checkpoint is for tree size {b.body.size}")
-        elif b.body.root != root:
-            a.fail.append(f"anchor batch {b.name}: checkpoint root hash {b.body.root.hex()} does not match the root "
-                          f"{root.hex()} recomputed from leaves.json")
-        if b.proof is not None:
+        # Contiguity: its previous_size against the size of the directory before it.
+        if b.previous_size is None:
+            b.block("contiguity", b.cause(LEAVES_FILE))
+        elif pred is not None and not pred.known:
+            b.block("contiguity", (Status.ERROR, f"entry {pred.name} before it could not be examined"))
+        else:
+            expected = pred.size if pred is not None else 0
+            if b.previous_size != expected:
+                _batch_fail(a, b, f"previous_size {b.previous_size}, but the log before it ends at "
+                                  f"size {expected} (batches must be contiguous)")
+                b.check("contiguity", Status.FAIL)
+            else:
+                b.check("contiguity", Status.PASS)
+        # The known prefix of leaves, extended through this batch if it can be.
+        if prefix is None:
+            if b.records is None:
+                prefix = b.cause(LEAVES_FILE)
+            elif b.checks["contiguity"] is Status.ERROR:
+                prefix = (Status.ERROR, f"it is not known whether batch {b.name} continues the log")
+            elif b.checks["contiguity"] is not Status.PASS:
+                prefix = (Status.NOT_CHECKED, f"batch {b.name} does not continue the log")
+            elif b.previous_size + len(b.records) != b.size:  # type: ignore[operator]
+                prefix = (Status.NOT_CHECKED, f"{LEAVES_FILE} of batch {b.name} does not match its tree size")
+            else:
+                for rid in b.records:
+                    a.positions.setdefault(rid, tree.size)
+                    tree.append(leaf_hash(record_leaf(rid)))
+                a.size = tree.size
+        # Uniqueness: no record it lists was anchored by an earlier batch.
+        if b.records is None:
+            b.block("uniqueness", b.cause(LEAVES_FILE))
+            earlier = earlier or b.cause(LEAVES_FILE)
+        else:
+            again = [rid for rid in b.records if rid in first]
+            for rid in again:
+                at = f" at leaf {a.positions[rid]}" if rid in a.positions else ""
+                _batch_fail(a, b, f"record {rid} was already anchored in batch {first[rid]}{at}")
+            if again:
+                b.check("uniqueness", Status.FAIL)
+            elif earlier is not None:
+                b.block("uniqueness", earlier)
+            else:
+                b.check("uniqueness", Status.PASS)
+            for rid in b.records:
+                first.setdefault(rid, b.name)
+        # The checkpoint: its tree size, then its root against the known prefix.
+        if b.body is None:
+            b.block("checkpoint size", b.cause(CHECKPOINT_FILE))
+            b.block("root", b.cause(CHECKPOINT_FILE))
+        elif b.body.size != b.size:
+            _batch_fail(a, b, f"checkpoint is for tree size {b.body.size}")
+            b.check("checkpoint size", Status.FAIL)
+            b.block("root", (Status.NOT_CHECKED, "the checkpoint is for another tree size"))
+        else:
+            b.check("checkpoint size", Status.PASS)
+            if prefix is not None:
+                b.block("root", prefix)
+            else:
+                root = tree.root()
+                # parse_checkpoint_body admits only the canonical text, so equal fields
+                # mean the note text is exactly checkpoint_body(origin, size, root).
+                if b.body.root != root:
+                    _batch_fail(a, b, f"checkpoint root hash {b.body.root.hex()} does not match the root "
+                                      f"{root.hex()} recomputed from leaves.json")
+                    b.check("root", Status.FAIL)
+                else:
+                    b.check("root", Status.PASS)
+        # Inclusion: needs only this batch's checkpoint text and proof.
+        if b.listed and not b.has_proof_file:
+            b.check("inclusion", Status.NOT_APPLICABLE)
+        elif b.proof is None:
+            b.block("inclusion", b.cause(PROOF_FILE))
+        elif b.note is None:
+            b.block("inclusion", b.cause(CHECKPOINT_FILE))
+        else:
             b.inclusion_problem = sigsum_inclusion_problem(b.proof, b.note.text)
             if b.inclusion_problem:
-                a.fail.append(f"anchor batch {b.name}: sigsum.proof does not log this checkpoint: {b.inclusion_problem}")
+                _batch_fail(a, b, f"sigsum.proof does not log this checkpoint: {b.inclusion_problem}")
+                b.check("inclusion", Status.FAIL)
+            else:
+                b.check("inclusion", Status.PASS)
+        if b.body is not None:
+            origins.setdefault(b.body.origin, b.name)
+        elif origin_cause is None:
+            origin_cause = b.cause(CHECKPOINT_FILE)
+        pred = b
     if len(origins) > 1:
         a.fail.append(f"anchor log checkpoints name {len(origins)} different origins: {sorted(origins)}")
-    a.origin = a.batches[-1].body.origin if a.batches[-1].body else None
-    if check_records:
-        for rid in sorted(a.positions):
-            loaded = records.load(repo_root, rid)
+        a.checks["origin"] = Status.FAIL
+    elif origin_cause is not None:
+        a.checks["origin"] = origin_cause[0]
+        a.blocked.append(f"one origin throughout not checked: {origin_cause[1]}")
+    else:
+        a.checks["origin"] = Status.PASS
+    a.origin = next((b.body.origin for b in reversed(a.batches) if b.body is not None), None)
+    loaded_records: Dict[str, records.Loaded] = {}
+    for b in a.batches:
+        if not check_records:
+            b.block("records", (Status.NOT_CHECKED, "anchored records were not requested"))
+            continue
+        if b.records is None:
+            b.block("records", b.cause(LEAVES_FILE))
+            continue
+        status = Status.PASS
+        for rid in b.records:
+            if rid not in loaded_records:
+                loaded_records[rid] = records.load(repo_root, rid)
+            loaded = loaded_records[rid]
             if loaded.problem in ("missing", "invalid"):
-                a.fail.append(f"anchored record {rid} (leaf {a.positions[rid]}) is "
-                              + ("missing" if loaded.problem == "missing" else "not a valid record")
-                              + ": " + "; ".join(loaded.errors))
+                where = f"leaf {a.positions[rid]}" if rid in a.positions else f"batch {b.name}"
+                message = (f"anchored record {rid} ({where}) is "
+                           + ("missing" if loaded.problem == "missing" else "not a valid record")
+                           + ": " + "; ".join(loaded.errors))
+                a.fail.append(message)
+                b.fail.append(message)
+                status = Status.FAIL
             elif loaded.problem == "io":
-                a.error.append(f"anchored record {rid}: " + "; ".join(loaded.errors))
+                _read_error(a, b, f"anchored record {rid}: " + "; ".join(loaded.errors))
+                status = Status.FAIL if status is Status.FAIL else Status.ERROR
+        b.check("records", status)
 
 
 def note_signature_problems(note: Note, origin: str, public_key: bytes, crypto: bool) -> Tuple[List[str], List[str]]:
@@ -1137,56 +1296,65 @@ def sigsum_proof_trust(p: SigsumProof, note_text: bytes, policy: AnchorPolicy, c
 
 
 def _checkpoint_trust(b: Batch, policy: AnchorPolicy, crypto: bool) -> CheckpointTrust:
-    """One checkpoint's evidence under ``policy``, from whatever of its batch
-    was read. A file that could not be read makes the result ERROR, unless what
-    was read already contradicts a key the policy trusts: FAIL > ERROR."""
-    errors = list(b.errors)
-    if b.note is None or b.body is None:
-        # audit() evaluates trust only when nothing FAILs, so the checkpoint was not read.
-        return CheckpointTrust(b.size, Status.ERROR, tuple(errors) or (f"{CHECKPOINT_FILE} was not read",))
-    if b.has_proof_file and b.proof is None and not errors:
-        errors.append(f"{PROOF_FILE} was not read")
-    if b.body.origin != policy.origin:
-        return CheckpointTrust(b.size, Status.ERROR if errors else Status.NOT_CHECKED, tuple(errors) + (
-            f"checkpoint origin {b.body.origin!r} is not the policy's anchor origin {policy.origin!r}",))
-    fail, nc = note_signature_problems(b.note, policy.origin, policy.anchor_key, crypto)
+    """One checkpoint under ``policy``: its batch's structural checks (step 3;
+    its root covers every leaf before it) and its evidence (step 4), from
+    whatever was read. FAIL > ERROR > NOT_CHECKED > PASS. PASS only if every
+    check of its batch was recorded as passed and the evidence verifies."""
+    fail, nc = list(b.fail), []
+    structure = _worst(b.checks.get(c, Status.NOT_CHECKED) for c in BATCH_CHECKS)
     pt = None
-    if b.proof is None:
-        if not b.has_proof_file:
-            nc.append("no sigsum.proof: the checkpoint has not been shown to be externally logged")
-        if not crypto:
-            nc.append(f"Ed25519 verification is not installed ({INSTALL_HINT}); no signature was checked")
-    else:
-        pt = sigsum_proof_trust(b.proof, b.note.text, policy, crypto)
-        fail += pt.fail
-        nc += pt.not_checked
-    if fail:
-        return CheckpointTrust(b.size, Status.FAIL, tuple(fail + errors + nc))
-    if errors:
-        return CheckpointTrust(b.size, Status.ERROR, tuple(errors + nc))
-    if nc or pt is None or pt.time is None:
-        return CheckpointTrust(b.size, Status.NOT_CHECKED, tuple(nc))
+    if b.note is not None and b.body is not None:
+        if b.body.origin != policy.origin:
+            nc.append(f"checkpoint origin {b.body.origin!r} is not the policy's anchor origin {policy.origin!r}")
+        else:
+            sig_fail, sig_nc = note_signature_problems(b.note, policy.origin, policy.anchor_key, crypto)
+            fail += sig_fail
+            nc += sig_nc
+            if b.proof is not None:
+                pt = sigsum_proof_trust(b.proof, b.note.text, policy, crypto)
+                fail += [r for r in pt.fail if r not in fail]   # inclusion is also a structural check
+                nc += pt.not_checked
+            else:
+                if b.listed and not b.has_proof_file:
+                    nc.append("no sigsum.proof: the checkpoint has not been shown to be externally logged")
+                if not crypto:
+                    nc.append(f"Ed25519 verification is not installed ({INSTALL_HINT}); no signature was checked")
+    if fail or structure is Status.FAIL:
+        return CheckpointTrust(b.size, Status.FAIL, tuple(fail + b.errors + b.blocked + nc))
+    if b.errors or structure is Status.ERROR:
+        return CheckpointTrust(b.size, Status.ERROR, tuple(b.errors + b.blocked + nc))
+    if structure is not Status.PASS or nc or pt is None or pt.time is None:
+        return CheckpointTrust(b.size, Status.NOT_CHECKED, tuple(b.blocked + nc))
     names = tuple(sorted(policy.witnesses[kh].name for kh, ts in pt.verified.items() if ts <= pt.time))
     return CheckpointTrust(b.size, Status.PASS, (), pt.time, b.proof.log_key_hash, names)  # type: ignore[union-attr]
 
 
 def audit(repo_root: Path, policy: Optional[AnchorPolicy] = None, *, check_records: bool = True) -> Audit:
-    """Check the whole anchor log; with a policy, also every checkpoint's trust."""
+    """Check the whole anchor log; with a policy, also every checkpoint's trust.
+    Every check runs whose inputs were read, however much of the rest fails or
+    could not be read; each checkpoint's status says what was established."""
     a = Audit(policy=policy, crypto=ed25519_available())
     _scan(repo_root, a)
     _check_structure(repo_root, a, check_records)
-    if policy is not None and not a.fail:
-        # Also when files could not be read: each checkpoint's own evidence is
-        # still checked, so a contradiction in what was read is a FAIL.
+    if policy is not None:
         a.trust = [_checkpoint_trust(b, policy, a.crypto) for b in a.batches]
     return a
 
 
 def integrity_outcome(a: Audit) -> Outcome:
-    if a.fail:
+    """The whole log's structural checks, FAIL > ERROR > NOT_CHECKED > PASS.
+    PASS only if every check was recorded as passed."""
+    blocked = [f"anchor batch {b.name}: {r}" for b in a.batches for r in b.blocked] + a.blocked
+    status = _worst([*(a.checks.get(c, Status.NOT_CHECKED) for c in LOG_CHECKS),
+                     *(b.checks.get(c, Status.NOT_CHECKED) for b in a.batches for c in BATCH_CHECKS),
+                     Status.FAIL if a.fail else Status.PASS, Status.ERROR if a.error else Status.PASS])
+    if status is Status.FAIL:
         return Outcome(Status.FAIL, f"{len(a.fail)} problem(s) in the anchor log", tuple(a.fail + a.error))
-    if a.error:
-        return Outcome(Status.ERROR, f"{len(a.error)} anchor check(s) could not complete", tuple(a.error))
+    if status is Status.ERROR:
+        return Outcome(Status.ERROR, f"{len(a.error)} anchor file(s) or record(s) could not be read; "
+                                     f"{len(blocked)} check(s) could not run", tuple(a.error + blocked))
+    if status is Status.NOT_CHECKED:
+        return Outcome(Status.NOT_CHECKED, f"{len(blocked)} check(s) did not run", tuple(blocked))
     if not a.batches:
         return Outcome(Status.NOT_APPLICABLE, "the anchor log is empty: nothing has been anchored")
     proofs = sum(1 for b in a.batches if b.proof is not None)
@@ -1199,7 +1367,8 @@ def integrity_outcome(a: Audit) -> Outcome:
 def _log_fail_or_error(a: Audit) -> Optional[Outcome]:
     """The whole log's FAIL or ERROR, if any, with FAIL > ERROR (ASSURANCE.md
     2): a contradiction in the files, or in a checkpoint's evidence under the
-    policy, outranks a file that could not be read. None if neither."""
+    policy, outranks a file that could not be read. None only if integrity
+    passed (or the log is empty) and no checkpoint FAILs."""
     integ = integrity_outcome(a)
     if integ.status is Status.FAIL:
         return Outcome(Status.FAIL, f"anchor log: {integ.detail}", integ.problems)
@@ -1209,8 +1378,8 @@ def _log_fail_or_error(a: Audit) -> Optional[Outcome]:
         listed = {r for t in failing for r in t.reasons}
         return Outcome(Status.FAIL, f"{len(fails)} problem(s) with checkpoint evidence",
                        tuple(fails) + tuple(e for e in a.error if e not in listed))
-    if integ.status is Status.ERROR:
-        return Outcome(Status.ERROR, f"anchor log: {integ.detail}", integ.problems)
+    if integ.status not in (Status.PASS, Status.NOT_APPLICABLE):
+        return Outcome(integ.status, f"anchor log: {integ.detail}", integ.problems)
     return None
 
 
@@ -1305,9 +1474,10 @@ def stored_record_ids(repo_root: Path) -> List[str]:
 def plan_batch(repo_root: Path) -> Tuple[Audit, List[str]]:
     """The audited current log, and the records a new batch would add (sorted)."""
     a = audit(repo_root)
-    if a.fail or a.error:
+    integ = integrity_outcome(a)
+    if integ.status not in (Status.PASS, Status.NOT_APPLICABLE):
         raise AnchorRefused("the existing anchor log does not pass integrity:\n  "
-                            + "\n  ".join(a.fail + a.error))
+                            + "\n  ".join(integ.problems or (integ.detail,)))
     new = sorted(set(stored_record_ids(repo_root)) - set(a.positions))
     return a, new
 
@@ -1334,7 +1504,7 @@ def write_batch(repo_root: Path, a: Audit, new: Sequence[str], signer: Signer,
         raise AnchorRefused("batch too large")
     tree = Tree()
     for b in a.batches:
-        for rid in b.records:
+        for rid in b.records or ():
             tree.append(leaf_hash(record_leaf(rid)))
     for rid in new:
         tree.append(leaf_hash(record_leaf(rid)))

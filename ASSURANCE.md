@@ -92,6 +92,11 @@ are still reported.
 CLI exit status: `0` profile satisfied; `2` not satisfied; `3` a required dimension is ERROR
 (inconclusive rather than refuted). `--json` prints the machine-readable report and profile result.
 
+A check that could not conclude can coexist with a conclusive failure elsewhere: one required
+dimension ERROR, another FAIL. The exit status is then 3, so 3 alone does not mean that nothing was
+refuted. The statuses in `--json` say which dimension is which. `ledger anchor verify` follows the
+same rule for integrity and trust.
+
 A satisfied profile never conceals a failure. If a dimension the profile does not require is FAIL,
 the profile result lists it under `unrequired_failures`, and the CLI prints a `note:` line. The
 standard case is a matching replay that ran without isolation (C2).
@@ -377,7 +382,8 @@ current state and the requirements for a later version follow where they apply.
 - **Procedure** (`ledger verify <id> --anchor-policy FILE`, `src/ledger/anchor.py`):
   1. Without a policy: governance is NOT_CHECKED, and nothing is read.
   2. If artifact or provenance integrity is not PASS, governance is NOT_CHECKED.
-  3. Audit the whole anchor log, without any key:
+  3. Audit the whole anchor log, without any key. Each check runs whenever its own inputs were
+     read (partial audits, below):
      - layout (only `.keep` and `<12 digits>/` directories, each holding `leaves.json` and
        `checkpoint`, and optionally `sigsum.proof`; regular files only)
      - strict parsing of every file
@@ -406,15 +412,28 @@ current state and the requirements for a later version follow where they apply.
   record's governance, not just the records in the affected batch. Without Ed25519, every check
   that needs only hashes still runs, so FAIL is still reported for such contradictions.
 
-  If an anchor file or batch directory cannot be read:
-  - Integrity is ERROR. The step 3 checks that follow parsing (contiguity, uniqueness, roots,
-    anchored records, inclusion) do not run, because they take the whole log as their input.
-  - Step 4 still runs on every checkpoint that was read. It is FAIL if the files that were read
-    contradict it (a proof that does not include it, or a signature by a key the policy trusts
-    that does not verify), and otherwise ERROR if any file in its batch could not be read.
-    `ledger anchor verify --json` reports this per checkpoint.
-  - The whole log's trust and each record's governance follow the same precedence, so such a
-    FAIL outranks the read error (C10).
+  **Partial audits.** However much of the log fails or could not be read, every check runs whose
+  own inputs were read (C10):
+  - **One batch's checks** need only that batch's files, plus the name of the directory before it:
+    its files are well-formed, it is contiguous with the directory before it, its checkpoint is
+    for its tree size, its proof includes its checkpoint, and its anchored records are present and
+    valid. It FAILs if it repeats a record of any earlier batch whose leaves were read. It passes
+    that check only once every earlier batch's leaves were read.
+  - **Roots** are recomputed only through the known prefix: the batches, from the first, whose
+    leaves were all read and are valid and contiguous. A root beyond the prefix is never compared,
+    so it is neither PASS nor FAIL: ERROR if the prefix ends at something unreadable, NOT_CHECKED
+    if at a contradiction (itself a FAIL). Missing leaves are never assumed, and an unknown prefix
+    is never bridged. An entry of `ledger/anchors/` that cannot be examined keeps its place as a
+    possible batch, so nothing is inferred across it.
+  - **Every check is recorded** as PASS, FAIL, ERROR (an input could not be read), NOT_CHECKED (an
+    input is missing or contradicted) or NOT_APPLICABLE. Integrity is the worst of them, and it is
+    PASS only if every check was recorded as passed, never because no error was reported.
+  - **Step 4 runs for every checkpoint**, even when integrity FAILs. A checkpoint's status covers
+    its batch's checks, including its root, and so every leaf before it, and its evidence under
+    the policy. It is PASS only if all of them were recorded as passed. `ledger anchor verify
+    --json` lists every checkpoint, with each check that could not run and why.
+  - **The whole log's trust and each record's governance** take a FAIL from integrity or from any
+    checkpoint before an ERROR.
 - **Permanent failure under add-only storage.** `ledger/anchors/**` is add-only. A malformed or
   contradictory file, once merged, makes governance FAIL for every record, and nothing in-band
   repairs it. So `ledger anchor verify --anchor-policy <policy>` must pass before a batch is
@@ -629,7 +648,7 @@ and execution-environment protections.
 | C7 | The CI record admission gate does not replay: invoked once without `--replay`, and it executes nothing. Workflow text has no direct replay invocation (a regression check). The CI token is read-only (top level, and no job grants write). This does not claim that nothing in CI replays: the test suite replays fixture transforms on purpose. | `test_C7_*` |
 | C8 | Every report covers all seven dimensions. Execution safety, reproducibility and authenticity never PASS in v2, and governance never PASSes without an anchor policy. Broken or missing records fail rather than pass. | `test_C8_*` |
 | C9 | Canonical encoding and record IDs match the frozen, language-neutral vectors. These cover duplicate keys, floats and number forms, Unicode (NFC, surrogates, invalid UTF-8), escaping, key order, whitespace, BOM, depth, domain separation, and schema rejections. Each reject vector must fail for its stated reason, not merely fail. Independently of Python, CI re-serializes every record-ID fixture with `jq -cSj` and recomputes its record ID and plain SHA-256 with `sha256sum`. | `test_C9_*`, `conformance/record-v1-vectors.json`, `ci/verify_record_ids.sh` |
-| C10 | Governance PASSes only through external anchoring under the verifier's own policy (5.7). It is NOT_CHECKED in all of these cases: no policy, even with valid anchors; only a policy planted in the repository; unanchored records; signed only by unknown keys; unknown log; other origin; quorum not met; Ed25519 not installed (hash-only contradictions still FAIL). It is FAIL in all of these: a root mismatch, even under the trusted key; a missing anchored record; a gap or fork between batches; a duplicate leaf; a tampered checkpoint, signature, inclusion path, tree head or leaf; a single invalid or backdated cosignature even when the quorum is otherwise met; malformed files (unexpected file, CRLF, non-canonical JSON, symlink, proof format version 1); and a failure in any batch fails every record. Decimals too long for `int()` (a 5,000-digit tree size, proof version or cosignature timestamp) FAIL rather than crash. An unreadable checkpoint, `leaves.json`, proof or batch directory is ERROR, never a crash, and a forged signature under the trusted key's name and ID still FAILs when its own proof or another batch's checkpoint is unreadable, as does a proof that does not include its checkpoint. The time bound is the quorum time, not the earliest cosignature, and omitting a cosignature never lowers it. A time bound after 9999-12-31T23:59:59Z keeps its integer value, with a null UTC form. Policies refuse `quorum none` and small-order keys. Anchors are add-only, the record gate admits only batch paths, and CI audits the anchor log without a policy and runs the reference implementation. The vectors reproduce from their generator and match RFC 6962 known answers, the C2SP signed-note example, and (in CI) sigsum-go v0.14.1, `sigsum-verify` and x/mod's signed-note code. | `test_C10_*`, `tests/test_anchor.py`, `conformance/anchor-v1-vectors.json`, `ci/verify_anchor_vectors.sh` |
+| C10 | Governance PASSes only through external anchoring under the verifier's own policy (5.7). It is NOT_CHECKED in all of these cases: no policy, even with valid anchors; only a policy planted in the repository; unanchored records; signed only by unknown keys; unknown log; other origin; quorum not met; Ed25519 not installed (hash-only contradictions still FAIL). It is FAIL in all of these: a root mismatch, even under the trusted key; a missing anchored record; a gap or fork between batches; a duplicate leaf; a tampered checkpoint, signature, inclusion path, tree head or leaf; a single invalid or backdated cosignature even when the quorum is otherwise met; malformed files (unexpected file, CRLF, non-canonical JSON, symlink, proof format version 1); and a failure in any batch fails every record. Decimals too long for `int()` (a 5,000-digit tree size, proof version or cosignature timestamp) FAIL rather than crash. An unreadable checkpoint, `leaves.json`, proof or batch directory is ERROR, never a crash. A partial audit still FAILs on a contradiction among the files it did read: a wrong root or tree size, a proof that does not include its checkpoint, a missing or repeated record, a gap, or a forged signature under the trusted key's name and ID. It concludes nothing past what it could not read: a checkpoint whose root covers unread leaves is ERROR, neither PASS nor FAIL, even when that root is wrong. Entries that cannot be examined block every check that depends on them. The time bound is the quorum time, not the earliest cosignature, and omitting a cosignature never lowers it. A time bound after 9999-12-31T23:59:59Z keeps its integer value, with a null UTC form. Policies refuse `quorum none` and small-order keys. Anchors are add-only, the record gate admits only batch paths, and CI audits the anchor log without a policy and runs the reference implementation. The vectors reproduce from their generator and match RFC 6962 known answers, the C2SP signed-note example, and (in CI) sigsum-go v0.14.1, `sigsum-verify` and x/mod's signed-note code. | `test_C10_*`, `tests/test_anchor.py`, `conformance/anchor-v1-vectors.json`, `ci/verify_anchor_vectors.sh` |
 
 **Planted-defect sensitivity.** The harness [`tools/planted_defects.py`](tools/planted_defects.py)
 checks that the tests detect specific defects. It is a manual maintenance command and is not run in
@@ -702,6 +721,8 @@ The catalogue covers these defects:
   - checkpoint trust assuming the checkpoint was read
   - UTC formatting limited to the platform's time range
   - whole-log trust reporting a read error before a known contradiction
+  - structural checks abandoned when any batch is not sound (the follow-up review)
+  - a checkpoint PASS inferred from the absence of errors (the follow-up review)
 
 The harness's own fail-closed behavior runs in CI (`tests/test_planted_defects_harness.py`, against a
 synthetic repository). The full catalogue run does not.

@@ -258,7 +258,7 @@ CATALOGUE: Tuple[Defect, ...] = (
            "    if anchor_policy is None:\n        o[Dimension.GOVERNANCE]",
            ((_c("test_C10_policy_in_the_repository_is_never_read"), _is("PASS", "NOT_CHECKED")),)),
     Defect("M34", "checkpoint root not compared with the root recomputed from leaves.json", "src/ledger/anchor.py",
-           "        elif b.body.root != root:", "        elif False:",
+           "                if b.body.root != root:", "                if False:",
            ((_c("test_C10_root_mismatch_fails_even_when_signed_by_the_trusted_key"), _is("PASS", "FAIL")),)),
     Defect("M35", "witness quorum ignored", "src/ledger/anchor.py",
            "    r.time = quorum_time(policy.quorum, r.verified)",
@@ -324,9 +324,8 @@ CATALOGUE: Tuple[Defect, ...] = (
              r"Exceeds the limit \(\d+ digits\) for integer string conversion"),),
            targets=("tests/test_anchor.py",)),
     Defect("M49", "checkpoint trust assumes the checkpoint was read", "src/ledger/anchor.py",
-           "    errors = list(b.errors)\n    if b.note is None or b.body is None:",
-           "    errors = list(b.errors)\n    assert b.note is not None and b.body is not None\n"
-           "    if b.note is None or b.body is None:",
+           "    fail, nc = list(b.fail), []\n",
+           "    assert b.note is not None and b.body is not None\n    fail, nc = list(b.fail), []\n",
            # The re-planted line, as printed in the CLI's traceback and in pytest's.
            ((_c("test_C10_unreadable_anchor_files_are_errors[checkpoint]"), _M49),
             (_c("test_C10_unreadable_anchor_files_are_errors[batch-directory]"), _M49),
@@ -345,6 +344,24 @@ CATALOGUE: Tuple[Defect, ...] = (
            "    if a.policy is None:",
            ((_c("test_C10_a_contradiction_outranks_an_unreadable_file[own-proof]"), _is("ERROR", "FAIL")),
             (_c("test_C10_a_contradiction_outranks_an_unreadable_file[other-checkpoint]"), _is("ERROR", "FAIL")))),
+    # Found in the follow-up review: partial audits.
+    Defect("M52", "structural checks abandoned when any batch is not sound", "src/ledger/anchor.py",
+           "    tree = Tree()\n    prefix: Optional[Cause] = None",
+           # The original early return, for a non-empty log (on an empty one it skipped nothing).
+           "    if a.batches and not all(b.sound for b in a.batches):\n"
+           "        if not a.fail and not a.error:\n"
+           '            a.fail.append("anchor log is malformed")\n'
+           "        return\n"
+           "    tree = Tree()\n    prefix: Optional[Cause] = None",
+           tuple((_c(f"test_C10_a_partial_audit_fails_on_a_contradiction_in_what_it_read[{case}]"),
+                  r"assert \('ERROR', 'ERROR'\) == \('FAIL', 'FAIL'\)")
+                 for case in ("root-proof", "root-leaves", "gap-leaves"))),
+    Defect("M53", "checkpoint PASS inferred from the absence of errors", "src/ledger/anchor.py",
+           "    structure = _worst(b.checks.get(c, Status.NOT_CHECKED) for c in BATCH_CHECKS)",
+           "    structure = Status.FAIL if b.fail else Status.ERROR if b.errors else Status.PASS",
+           tuple((_c(f"test_C10_a_partial_audit_does_not_conclude_past_what_it_could_not_read[{case}]"),
+                  r"At index 1 diff: <Status\.PASS: 'PASS'> != <Status\.ERROR: 'ERROR'>")
+                 for case in ("correct-leaves", "wrong-leaves"))),
 )
 
 
