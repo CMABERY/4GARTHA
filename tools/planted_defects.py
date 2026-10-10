@@ -305,7 +305,7 @@ CATALOGUE: Tuple[Defect, ...] = (
            "                if ANCHOR_PATH_RE.fullmatch(p) is None:", "                if False:",
            ((_c("test_C10_record_gate_admits_only_anchor_batch_paths[ledger/anchors/anchor-policy-False]"), r"assert \(0 == 2\)"),)),
     Defect("M46", "batches accepted without checking contiguity", "src/ledger/anchor.py",
-           "        if b.previous_size != expected:", "        if False:",
+           "            if b.previous_size != expected:", "            if False:",
            ((_c("test_C10_a_gap_between_batches_fails_even_when_roots_match"), _is("PASS", "FAIL")),)),
     # Defects found in implementation review of PR #41 (anchoring phase 1),
     # re-planted in their original form. M47 and M48 need a Python that limits

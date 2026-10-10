@@ -38,6 +38,8 @@ with public test keys and a test-only Sigsum log. Nothing has been anchored in p
     not read.
   - `ledger anchor verify --json` lists every checkpoint with a policy, even when integrity FAILs,
     with each check that could not run and why.
+  - `anchor_log.size` in that output is the number of leaves in the known prefix: the whole log
+    when integrity passes.
 - **Conformance C10, and `conformance/anchor-v1-vectors.json`.** The vectors are reproducible with
   `tools/anchor_fixtures.py`, and include RFC 6962 known answers and the C2SP signed-note example.
 - **The optional `anchor` extra** (`cryptography`). The base install stays `jsonschema`-only.
@@ -63,7 +65,7 @@ with public test keys and a test-only Sigsum log. Nothing has been anchored in p
 
 - Planted defects M52 and M53 re-plant the partial-audit defects from the follow-up review:
   structural checks abandoned when any batch is not sound, and a checkpoint PASS inferred from
-  the absence of errors. M34 and M49 now target the restructured code.
+  the absence of errors. M34, M46 and M49 now target the restructured code.
 - Planted defects M47 to M51 re-plant the defects found in implementation review of anchoring:
   oversized decimals crashing, an unreadable checkpoint crashing, UTC formatting crashing on a
   valid time bound, and whole-log trust putting ERROR before FAIL.
