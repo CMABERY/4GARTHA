@@ -1247,6 +1247,26 @@ def test_C10_a_contradiction_outranks_an_unreadable_file(tmp_path: Path, unread:
 
 
 @needs_ed25519
+@needs_posix_permissions
+def test_C10_a_proof_that_omits_its_checkpoint_outranks_an_unreadable_file(tmp_path: Path) -> None:
+    # The hash-only contradiction: with another batch's checkpoint unreadable,
+    # integrity cannot check inclusion, but the checkpoint's own evaluation
+    # does, so the result is FAIL, not ERROR.
+    root, a, d, size = anchored_repo(tmp_path / "repo")
+    admit(root, b"later")
+    s2 = anchor_batch(root)
+    log_batch(root, s2)
+    _tampered_path(root, size, A.parse_sigsum_proof((batch_dir(root, size) / A.PROOF_FILE).read_bytes()))
+    with _unreadable(batch_dir(root, s2) / A.CHECKPOINT_FILE):
+        audit = A.audit(root, policy())
+        assert A.integrity_outcome(audit).status is S.ERROR
+        assert [t.status for t in audit.trust] == [S.FAIL, S.ERROR]
+        assert A.trust_outcome(audit).status is S.FAIL
+        oc = _gov(check(root, d, anchor_policy=policy()))
+        assert oc.status is S.FAIL and any("does not lead to the root hash" in p for p in oc.problems), oc
+
+
+@needs_ed25519
 def test_C10_a_time_bound_past_the_utc_calendar_is_reported_as_the_integer(tmp_path: Path) -> None:
     # Sigsum timestamps go up to 2**63 - 1. Here a valid 2-of-3 quorum is met
     # only by a cosignature carrying the largest, so T is that integer: the
