@@ -91,6 +91,9 @@ def _is(got: str, want: str) -> str:
     return _FAIL_IS.format(got=got, want=want)
 
 
+_M49 = r"assert b\.note is not None and b\.body is not None"
+
+
 CATALOGUE: Tuple[Defect, ...] = (
     Defect("M1", "root replay reported as PASS", "src/ledger/verifier.py",
            'dv = Outcome(Status.NOT_APPLICABLE, "lineage contains only admission records',
@@ -304,6 +307,44 @@ CATALOGUE: Tuple[Defect, ...] = (
     Defect("M46", "batches accepted without checking contiguity", "src/ledger/anchor.py",
            "        if b.previous_size != expected:", "        if False:",
            ((_c("test_C10_a_gap_between_batches_fails_even_when_roots_match"), _is("PASS", "FAIL")),)),
+    # Defects found in implementation review of PR #41 (anchoring phase 1),
+    # re-planted in their original form. M47 and M48 need a Python that limits
+    # int() digits (3.10.7+), as the defects themselves do.
+    Defect("M47", "anchor decimals converted with int() before their length is bounded", "src/ledger/anchor.py",
+           "    if len(text) > _MAX_DECIMAL_DIGITS or _DECIMAL_RE.fullmatch(text) is None:",
+           "    if _DECIMAL_RE.fullmatch(text) is None:",
+           ((_c("test_C10_oversized_decimals_fail_rather_than_crash[checkpoint-tree-size]"),
+             r"Exceeds the limit \(\d+ digits\) for integer string conversion"),
+            (_c("test_C10_oversized_decimals_fail_rather_than_crash[proof-version]"),
+             r"Exceeds the limit \(\d+ digits\) for integer string conversion"))),
+    Defect("M48", "policy threshold converted with int() before its length is bounded", "src/ledger/anchor.py",
+           "                k = _decimal(k_text)   # bounded before conversion",
+           "                k = int(k_text)",
+           (("tests/test_anchor.py::test_policy_threshold_is_bounded_before_conversion",
+             r"Exceeds the limit \(\d+ digits\) for integer string conversion"),),
+           targets=("tests/test_anchor.py",)),
+    Defect("M49", "checkpoint trust assumes the checkpoint was read", "src/ledger/anchor.py",
+           "    errors = list(b.errors)\n    if b.note is None or b.body is None:",
+           "    errors = list(b.errors)\n    assert b.note is not None and b.body is not None\n"
+           "    if b.note is None or b.body is None:",
+           # The re-planted line, as printed in the CLI's traceback and in pytest's.
+           ((_c("test_C10_unreadable_anchor_files_are_errors[checkpoint]"), _M49),
+            (_c("test_C10_unreadable_anchor_files_are_errors[batch-directory]"), _M49),
+            (_c("test_C10_a_contradiction_outranks_an_unreadable_file[other-checkpoint]"), _M49))),
+    Defect("M50", "UTC formatting limited to the platform's time range", "src/ledger/anchor.py",
+           "    if not 0 <= timestamp <= MAX_UTC_TIMESTAMP:\n        return None\n"
+           '    return (_EPOCH + _dt.timedelta(seconds=timestamp)).strftime("%Y-%m-%dT%H:%M:%SZ")',
+           '    return _dt.datetime.fromtimestamp(timestamp, _dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")',
+           ((_c("test_C10_a_time_bound_past_the_utc_calendar_is_reported_as_the_integer"), r", in utc\b"),)),
+    Defect("M51", "whole-log trust reports a read error before a known contradiction", "src/ledger/anchor.py",
+           "    failed = _log_fail_or_error(a)\n    if failed is not None:\n        return failed\n"
+           "    if a.policy is None:",
+           "    integ = integrity_outcome(a)\n    if integ.status in (Status.FAIL, Status.ERROR):\n"
+           '        return Outcome(integ.status, "anchor log integrity did not pass", integ.problems)\n'
+           "    failed = _log_fail_or_error(a)\n    if failed is not None:\n        return failed\n"
+           "    if a.policy is None:",
+           ((_c("test_C10_a_contradiction_outranks_an_unreadable_file[own-proof]"), _is("ERROR", "FAIL")),
+            (_c("test_C10_a_contradiction_outranks_an_unreadable_file[other-checkpoint]"), _is("ERROR", "FAIL")))),
 )
 
 

@@ -96,6 +96,44 @@ def test_small_order_keys_admit_forgeries_and_policies_refuse_them() -> None:
 # --- parsing details not covered by the vectors -----------------------------------
 
 
+def test_decimals_are_bounded_before_conversion() -> None:
+    # int() raises ValueError past sys.get_int_max_str_digits() digits, so the
+    # length is checked first; C10 covers the files that carry these decimals.
+    assert A._decimal("0") == 0 and A._decimal(str(A.MAX_UINT63)) == A.MAX_UINT63
+    # "\uff11" is a fullwidth digit one, which int() would accept.
+    for bad in (str(A.MAX_UINT63 + 1), "1" + "0" * 19, "9" * 5000, "01", "", "+1", "1_000", "\uff11"):
+        assert A._decimal(bad) is None, bad[:30]
+    with pytest.raises(A.FormatError) as exc:
+        A.parse_checkpoint_body(b"origin\n" + b"9" * 5000 + b"\n" + A.b64(bytes(32)).encode() + b"\n")
+    assert "is not a canonical decimal" in str(exc.value) and len(str(exc.value)) < 200
+
+
+@needs_ed25519
+def test_policy_threshold_is_bounded_before_conversion(tmp_path: Path) -> None:
+    text = F.policy_text()
+    huge = text.replace("quorum-rule 2 ", "quorum-rule " + "9" * 5000 + " ")
+    assert huge != text and len(huge) < A.MAX_POLICY_BYTES
+    with pytest.raises(A.PolicyError, match="out of range") as exc:
+        A.parse_policy(huge.encode())
+    assert len(str(exc.value)) < 200
+    root = init_repo(tmp_path / "repo")
+    bad = tmp_path / "verifier" / "huge-threshold"
+    bad.parent.mkdir()
+    bad.write_text(huge)
+    proc = run_cli(root, "anchor", "verify", "--anchor-policy", str(bad))
+    assert proc.returncode == 1 and "invalid anchor policy" in proc.stderr, proc.stderr
+    assert "Traceback" not in proc.stderr
+
+
+def test_utc_formatting_covers_what_datetime_can_show_and_says_so_beyond() -> None:
+    assert A.utc(0) == "1970-01-01T00:00:00Z"
+    assert A.utc(1767225800) == "2026-01-01T00:03:20Z"
+    assert A.utc(A.MAX_UTC_TIMESTAMP) == "9999-12-31T23:59:59Z"
+    assert A.utc(A.MAX_UTC_TIMESTAMP + 1) is None and A.utc(A.MAX_UINT63) is None
+    assert A.describe_time(A.MAX_UTC_TIMESTAMP) == "9999-12-31T23:59:59Z"
+    assert A.describe_time(A.MAX_UINT63).startswith(f"Unix time {A.MAX_UINT63} ")
+
+
 def test_canonical_base64_rejects_padding_bits_and_bad_alphabet() -> None:
     assert A.b64decode_canonical("AA==") == b"\x00"
     for bad in ("AB==", "AA=", "AA", "A===", "AA==\n", "-_8=", ""):

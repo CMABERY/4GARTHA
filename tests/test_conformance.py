@@ -746,6 +746,7 @@ def test_C9_record_reject_vectors(tmp_path: Path, name: str) -> None:
 import hashlib  # noqa: E402
 import os  # noqa: E402
 import subprocess  # noqa: E402
+from contextlib import contextmanager  # noqa: E402
 
 from ledger import anchor as A  # noqa: E402
 from ledger.verifier import verify  # noqa: E402
@@ -1129,6 +1130,151 @@ def test_C10_malformed_anchor_files_fail(tmp_path: Path, damage, reason: str) ->
     oc = _gov(check(root, d, anchor_policy=policy()))
     assert oc.status is S.FAIL, oc
     assert any(reason in p for p in oc.problems), oc.problems
+
+
+# A 5,000-digit decimal fits well within every file size limit, but not within
+# int()'s default limit on digits (sys.get_int_max_str_digits()).
+_HUGE = b"9" * 5000
+
+
+def _huge_checkpoint_size(root: Path, size: int) -> None:
+    path = batch_dir(root, size) / A.CHECKPOINT_FILE
+    path.write_bytes(path.read_bytes().replace(b"\n%d\n" % size, b"\n" + _HUGE + b"\n", 1))
+
+
+def _huge_proof_version(root: Path, size: int) -> None:
+    path = batch_dir(root, size) / A.PROOF_FILE
+    path.write_bytes(path.read_bytes().replace(b"version=2", b"version=" + _HUGE, 1))
+
+
+def _huge_cosignature_timestamp(root: Path, size: int) -> None:
+    path = batch_dir(root, size) / A.PROOF_FILE
+    path.write_bytes(path.read_bytes().replace(b" %d " % STD_COSIGNERS[0][1], b" " + _HUGE + b" ", 1))
+
+
+@needs_ed25519
+@pytest.mark.parametrize("damage, reason", [
+    (_huge_checkpoint_size, "checkpoint tree size"),
+    (_huge_proof_version, "invalid version"),
+    (_huge_cosignature_timestamp, "invalid cosignature timestamp"),
+], ids=["checkpoint-tree-size", "proof-version", "cosignature-timestamp"])
+def test_C10_oversized_decimals_fail_rather_than_crash(tmp_path: Path, damage, reason: str) -> None:
+    root, a, d, size = anchored_repo(tmp_path / "repo")
+    damage(root, size)
+    proc = run_cli(root, "anchor", "verify", "--json")
+    assert proc.returncode == 2, proc.stderr          # an uncaught exception exits 1
+    integrity = json.loads(proc.stdout)["integrity"]
+    assert integrity["status"] == "FAIL" and any(reason in p for p in integrity["problems"]), integrity
+    assert all(len(p) < 500 for p in integrity["problems"]), "the number is not echoed in full"
+    oc = _gov(check(root, d, anchor_policy=policy()))
+    assert oc.status is S.FAIL and any(reason in p for p in oc.problems), oc
+
+
+needs_posix_permissions = pytest.mark.skipif(
+    os.name == "nt" or (hasattr(os, "geteuid") and os.geteuid() == 0), reason="needs POSIX permissions")
+
+
+@contextmanager
+def _unreadable(path: Path) -> Iterator[None]:
+    mode = path.stat().st_mode & 0o777
+    path.chmod(0)
+    try:
+        yield
+    finally:
+        path.chmod(mode)
+
+
+@needs_ed25519
+@needs_posix_permissions
+@pytest.mark.parametrize("name", [A.CHECKPOINT_FILE, ".", A.LEAVES_FILE, A.PROOF_FILE],
+                         ids=["checkpoint", "batch-directory", "leaves", "proof"])
+def test_C10_unreadable_anchor_files_are_errors(tmp_path: Path, name: str) -> None:
+    # ERROR: the procedure could not conclude. Never FAIL, never a crash.
+    root, a, d, size = anchored_repo(tmp_path / "repo")
+    pol = write_policy(tmp_path / "verifier" / "anchor-policy")
+    with _unreadable(batch_dir(root, size) / name):
+        proc = run_cli(root, "anchor", "verify", "--anchor-policy", str(pol), "--json")
+        assert proc.returncode == 3, proc.stderr      # an uncaught exception exits 1
+        doc = json.loads(proc.stdout)
+        assert (doc["integrity"]["status"], doc["trust"]["status"]) == ("ERROR", "ERROR"), doc
+        [cp] = doc["checkpoints"]
+        assert cp["status"] == "ERROR" and any("cannot" in r for r in cp["reasons"]), cp
+        # An unreadable proof exists: it is not reported as absent.
+        assert not any("no sigsum.proof" in r for r in cp["reasons"]), cp
+        plain = run_cli(root, "anchor", "verify", "--json")
+        assert plain.returncode == 3 and json.loads(plain.stdout)["integrity"]["status"] == "ERROR", plain.stderr
+        audit = A.audit(root, policy())
+        assert [t.status for t in audit.trust] == [S.ERROR]
+        assert A.trust_outcome(audit).status is S.ERROR
+        oc = _gov(check(root, d, anchor_policy=policy()))
+        assert oc.status is S.ERROR and any("cannot" in p for p in oc.problems), oc
+
+
+@needs_ed25519
+@needs_posix_permissions
+@pytest.mark.parametrize("unread", ["own-proof", "other-checkpoint"])
+def test_C10_a_contradiction_outranks_an_unreadable_file(tmp_path: Path, unread: str) -> None:
+    # FAIL > ERROR. The checkpoint carries a signature line under the trusted
+    # key's name and key ID, signed by another key. That contradiction is
+    # FAIL even when another anchor file, in the same batch or another,
+    # cannot be read; the read error is still reported.
+    root, a, d, size = anchored_repo(tmp_path / "repo")
+    if unread == "own-proof":
+        path = batch_dir(root, size) / A.PROOF_FILE
+    else:
+        admit(root, b"later")
+        s2 = anchor_batch(root)
+        log_batch(root, s2)
+        path = batch_dir(root, s2) / A.CHECKPOINT_FILE
+    _wrong_key_signature(root, size, None)
+    pol = write_policy(tmp_path / "verifier" / "anchor-policy")
+    forged = "checkpoint signature by the policy's anchor key does not verify"
+    with _unreadable(path):
+        audit = A.audit(root, policy())
+        assert A.integrity_outcome(audit).status is S.ERROR
+        assert A.trust_outcome(audit).status is S.FAIL
+        assert [t.status for t in audit.trust] == ([S.FAIL] if unread == "own-proof" else [S.FAIL, S.ERROR])
+        oc = _gov(check(root, d, anchor_policy=policy()))
+        assert oc.status is S.FAIL and any(forged in p for p in oc.problems), oc
+        assert any("cannot read" in p for p in oc.problems), oc.problems
+        proc = run_cli(root, "anchor", "verify", "--anchor-policy", str(pol), "--json")
+        doc = json.loads(proc.stdout)
+        assert (doc["integrity"]["status"], doc["trust"]["status"]) == ("ERROR", "FAIL"), doc
+        assert any(forged in p for p in doc["trust"]["problems"])
+        # The exit status is 3 when a required check is ERROR, even if another
+        # is FAIL, as for `ledger verify` (ASSURANCE.md 3); the JSON says which.
+        assert proc.returncode == 3, proc.stderr
+
+
+@needs_ed25519
+def test_C10_a_time_bound_past_the_utc_calendar_is_reported_as_the_integer(tmp_path: Path) -> None:
+    # Sigsum timestamps go up to 2**63 - 1. Here a valid 2-of-3 quorum is met
+    # only by a cosignature carrying the largest, so T is that integer: the
+    # report keeps it and has no UTC form for it, rather than crashing or
+    # changing T.
+    root, a, d, size = anchored_repo(tmp_path / "repo")
+    log_batch(root, size, cosigners=(("w1", T0), ("w2", A.MAX_UINT63)))
+    pol = write_policy(tmp_path / "verifier" / "anchor-policy")
+    proc = run_cli(root, "anchor", "verify", "--anchor-policy", str(pol), "--json")
+    assert proc.returncode == 0, proc.stderr
+    doc = json.loads(proc.stdout)
+    assert doc["trust"]["status"] == "PASS"
+    [cp] = doc["checkpoints"]
+    assert (cp["status"], cp["anchored_no_later_than"], cp["anchored_no_later_than_utc"]) == ("PASS", A.MAX_UINT63, None)
+    text = run_cli(root, "anchor", "verify", "--anchor-policy", str(pol))
+    assert text.returncode == 0 and f"no later than Unix time {A.MAX_UINT63}" in text.stdout, text.stdout
+    oc = _gov(check(root, d, anchor_policy=policy()))
+    assert oc.status is S.PASS
+    assert (oc.evidence["anchored_no_later_than"], oc.evidence["anchored_no_later_than_utc"]) == (A.MAX_UINT63, None)
+    assert f"no later than Unix time {A.MAX_UINT63}" in oc.detail
+    report = run_cli(root, "verify", d, "--json", "--profile", "governed", "--anchor-policy", str(pol))
+    assert report.returncode == 0, report.stderr
+    ev = json.loads(report.stdout)["report"]["outcomes"]["governance"]["evidence"]
+    assert (ev["anchored_no_later_than"], ev["anchored_no_later_than_utc"]) == (A.MAX_UINT63, None)
+    # The last second the UTC form can show is still shown.
+    log_batch(root, size, cosigners=(("w1", T0), ("w2", A.MAX_UTC_TIMESTAMP)))
+    ev = _gov(check(root, d, anchor_policy=policy())).evidence
+    assert (ev["anchored_no_later_than"], ev["anchored_no_later_than_utc"]) == (A.MAX_UTC_TIMESTAMP, "9999-12-31T23:59:59Z")
 
 
 @needs_ed25519

@@ -219,12 +219,23 @@ def b64decode_canonical(text: str) -> Optional[bytes]:
     return raw if b64(raw) == text else None
 
 
+_MAX_DECIMAL_DIGITS = len(str(MAX_UINT63))
+
+
 def _decimal(text: str) -> Optional[int]:
-    """``0|[1-9][0-9]*`` up to 2**63 - 1 (Sigsum and C2SP ASCII decimals)."""
-    if _DECIMAL_RE.fullmatch(text) is None:
+    """``0|[1-9][0-9]*`` up to 2**63 - 1 (Sigsum and C2SP ASCII decimals).
+    The length is bounded before conversion: int() refuses strings of more
+    than sys.get_int_max_str_digits() digits with a ValueError, and a file
+    within its size limit can hold far more."""
+    if len(text) > _MAX_DECIMAL_DIGITS or _DECIMAL_RE.fullmatch(text) is None:
         return None
     value = int(text)
     return value if value <= MAX_UINT63 else None
+
+
+def _clip(text: str, n: int = 40) -> str:
+    """``text`` for an error message, shortened if it is long."""
+    return text if len(text) <= n else f"{text[:n]}... ({len(text)} characters)"
 
 
 def _hex(text: str, n: int) -> Optional[bytes]:
@@ -252,8 +263,28 @@ def name_problem(name: str) -> Optional[str]:
     return None
 
 
-def utc(timestamp: int) -> str:
-    return _dt.datetime.fromtimestamp(timestamp, _dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+_EPOCH = _dt.datetime(1970, 1, 1, tzinfo=_dt.timezone.utc)
+MAX_UTC_TIMESTAMP = 253_402_300_799   # 9999-12-31T23:59:59Z, the last second datetime can represent
+
+
+def utc(timestamp: int) -> Optional[str]:
+    """``timestamp`` (Unix seconds) as ``YYYY-MM-DDTHH:MM:SSZ``, or None if it
+    is after 9999-12-31T23:59:59Z. Sigsum timestamps go up to 2**63 - 1, so a
+    valid cosignature can carry a time no calendar date here represents; the
+    integer remains the time bound. Computed without the platform's time
+    functions, whose range varies."""
+    if not 0 <= timestamp <= MAX_UTC_TIMESTAMP:
+        return None
+    return (_EPOCH + _dt.timedelta(seconds=timestamp)).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def describe_time(timestamp: int) -> str:
+    """A time bound for a report's text: UTC when representable, otherwise the
+    integer, saying why. Never a different value."""
+    text = utc(timestamp)
+    if text is not None:
+        return text
+    return f"Unix time {timestamp} (after 9999-12-31T23:59:59Z, so no UTC date is shown)"
 
 
 # --- RFC 6962 Merkle tree ----------------------------------------------------
@@ -451,7 +482,8 @@ def parse_checkpoint_body(text: bytes) -> CheckpointBody:
         raise FormatError(f"checkpoint origin {problem}")
     size = _decimal(size_text)
     if size is None:
-        raise FormatError(f"checkpoint tree size {size_text!r} is not a canonical decimal")
+        raise FormatError(f"checkpoint tree size {_clip(size_text)!r} is not a canonical decimal "
+                          f"of at most {MAX_UINT63}")
     root = b64decode_canonical(root_text)
     if root is None or len(root) != 32:
         raise FormatError("checkpoint root hash is not the canonical base64 of 32 bytes")
@@ -734,9 +766,12 @@ def parse_policy(data: bytes) -> AnchorPolicy:
             elif k_text == "any":
                 k = 1
             elif _DECIMAL_RE.fullmatch(k_text):
-                k = int(k_text)
+                k = _decimal(k_text)   # bounded before conversion
+                if k is None:
+                    raise PolicyError(f"line {lineno}: threshold {_clip(k_text)} out of range for "
+                                      f"{len(members)} member(s)")
             else:
-                raise PolicyError(f"line {lineno}: threshold {k_text!r} is not all, any or a decimal")
+                raise PolicyError(f"line {lineno}: threshold {_clip(k_text)!r} is not all, any or a decimal")
             if not 1 <= k <= len(members):
                 raise PolicyError(f"line {lineno}: threshold {k} out of range for {len(members)} member(s)")
             nodes = []
@@ -840,6 +875,7 @@ class Batch:
     has_proof_file: bool = False
     inclusion_problem: Optional[str] = None
     sound: bool = False   # every file present and well-formed
+    errors: List[str] = field(default_factory=list)   # this batch's directory or files could not be read
 
 
 @dataclass
@@ -874,11 +910,17 @@ class Audit:
     trust: List[CheckpointTrust] = field(default_factory=list)
 
 
-def _read_regular(path: Path, limit: int, a: Audit, label: str) -> Optional[bytes]:
+def _read_error(a: Audit, b: Optional[Batch], message: str) -> None:
+    a.error.append(message)
+    if b is not None:
+        b.errors.append(message)
+
+
+def _read_regular(path: Path, limit: int, a: Audit, label: str, b: Optional[Batch] = None) -> Optional[bytes]:
     try:
         st = os.lstat(path)
     except OSError as e:
-        a.error.append(f"{label}: cannot stat: {e}")
+        _read_error(a, b, f"{label}: cannot stat: {e}")
         return None
     if not stat.S_ISREG(st.st_mode):
         a.fail.append(f"{label}: not a regular file")
@@ -889,7 +931,7 @@ def _read_regular(path: Path, limit: int, a: Audit, label: str) -> Optional[byte
     try:
         return path.read_bytes()
     except OSError as e:
-        a.error.append(f"{label}: cannot read: {e}")
+        _read_error(a, b, f"{label}: cannot read: {e}")
         return None
 
 
@@ -932,7 +974,7 @@ def _scan(repo_root: Path, a: Audit) -> None:
         try:
             files = sorted(os.listdir(path))
         except OSError as e:
-            a.error.append(f"{label}: cannot list: {e}")
+            _read_error(a, b, f"{label}: cannot list: {e}")
             continue
         extra = [f for f in files if f not in (LEAVES_FILE, CHECKPOINT_FILE, PROOF_FILE)]
         missing = [f for f in (LEAVES_FILE, CHECKPOINT_FILE) if f not in files]
@@ -942,7 +984,7 @@ def _scan(repo_root: Path, a: Audit) -> None:
             a.fail.append(f"{label}: missing {f}")
         ok = not extra and not missing
         if LEAVES_FILE in files:
-            data = _read_regular(path / LEAVES_FILE, MAX_LEAVES_BYTES, a, f"{label}/{LEAVES_FILE}")
+            data = _read_regular(path / LEAVES_FILE, MAX_LEAVES_BYTES, a, f"{label}/{LEAVES_FILE}", b)
             if data is None:
                 ok = False
             else:
@@ -957,7 +999,7 @@ def _scan(repo_root: Path, a: Audit) -> None:
                                       f"is not the directory's tree size {size}")
                         ok = False
         if CHECKPOINT_FILE in files:
-            data = _read_regular(path / CHECKPOINT_FILE, MAX_CHECKPOINT_BYTES, a, f"{label}/{CHECKPOINT_FILE}")
+            data = _read_regular(path / CHECKPOINT_FILE, MAX_CHECKPOINT_BYTES, a, f"{label}/{CHECKPOINT_FILE}", b)
             if data is None:
                 ok = False
             else:
@@ -969,7 +1011,7 @@ def _scan(repo_root: Path, a: Audit) -> None:
                     ok = False
         if PROOF_FILE in files:
             b.has_proof_file = True
-            data = _read_regular(path / PROOF_FILE, MAX_PROOF_BYTES, a, f"{label}/{PROOF_FILE}")
+            data = _read_regular(path / PROOF_FILE, MAX_PROOF_BYTES, a, f"{label}/{PROOF_FILE}", b)
             if data is None:
                 ok = False
             else:
@@ -1095,14 +1137,23 @@ def sigsum_proof_trust(p: SigsumProof, note_text: bytes, policy: AnchorPolicy, c
 
 
 def _checkpoint_trust(b: Batch, policy: AnchorPolicy, crypto: bool) -> CheckpointTrust:
-    assert b.note is not None and b.body is not None
+    """One checkpoint's evidence under ``policy``, from whatever of its batch
+    was read. A file that could not be read makes the result ERROR, unless what
+    was read already contradicts a key the policy trusts: FAIL > ERROR."""
+    errors = list(b.errors)
+    if b.note is None or b.body is None:
+        # audit() evaluates trust only when nothing FAILs, so the checkpoint was not read.
+        return CheckpointTrust(b.size, Status.ERROR, tuple(errors) or (f"{CHECKPOINT_FILE} was not read",))
+    if b.has_proof_file and b.proof is None and not errors:
+        errors.append(f"{PROOF_FILE} was not read")
     if b.body.origin != policy.origin:
-        return CheckpointTrust(b.size, Status.NOT_CHECKED,
-                               (f"checkpoint origin {b.body.origin!r} is not the policy's anchor origin {policy.origin!r}",))
+        return CheckpointTrust(b.size, Status.ERROR if errors else Status.NOT_CHECKED, tuple(errors) + (
+            f"checkpoint origin {b.body.origin!r} is not the policy's anchor origin {policy.origin!r}",))
     fail, nc = note_signature_problems(b.note, policy.origin, policy.anchor_key, crypto)
     pt = None
     if b.proof is None:
-        nc.append("no sigsum.proof: the checkpoint has not been shown to be externally logged")
+        if not b.has_proof_file:
+            nc.append("no sigsum.proof: the checkpoint has not been shown to be externally logged")
         if not crypto:
             nc.append(f"Ed25519 verification is not installed ({INSTALL_HINT}); no signature was checked")
     else:
@@ -1110,7 +1161,9 @@ def _checkpoint_trust(b: Batch, policy: AnchorPolicy, crypto: bool) -> Checkpoin
         fail += pt.fail
         nc += pt.not_checked
     if fail:
-        return CheckpointTrust(b.size, Status.FAIL, tuple(fail + nc))
+        return CheckpointTrust(b.size, Status.FAIL, tuple(fail + errors + nc))
+    if errors:
+        return CheckpointTrust(b.size, Status.ERROR, tuple(errors + nc))
     if nc or pt is None or pt.time is None:
         return CheckpointTrust(b.size, Status.NOT_CHECKED, tuple(nc))
     names = tuple(sorted(policy.witnesses[kh].name for kh, ts in pt.verified.items() if ts <= pt.time))
@@ -1123,6 +1176,8 @@ def audit(repo_root: Path, policy: Optional[AnchorPolicy] = None, *, check_recor
     _scan(repo_root, a)
     _check_structure(repo_root, a, check_records)
     if policy is not None and not a.fail:
+        # Also when files could not be read: each checkpoint's own evidence is
+        # still checked, so a contradiction in what was read is a FAIL.
         a.trust = [_checkpoint_trust(b, policy, a.crypto) for b in a.batches]
     return a
 
@@ -1141,23 +1196,38 @@ def integrity_outcome(a: Audit) -> Outcome:
                    "record(s) present and valid (no signature or trust was checked)")
 
 
+def _log_fail_or_error(a: Audit) -> Optional[Outcome]:
+    """The whole log's FAIL or ERROR, if any, with FAIL > ERROR (ASSURANCE.md
+    2): a contradiction in the files, or in a checkpoint's evidence under the
+    policy, outranks a file that could not be read. None if neither."""
+    integ = integrity_outcome(a)
+    if integ.status is Status.FAIL:
+        return Outcome(Status.FAIL, f"anchor log: {integ.detail}", integ.problems)
+    failing = [t for t in a.trust if t.status is Status.FAIL]
+    if failing:
+        fails = [f"checkpoint {batch_name(t.size)}: {r}" for t in failing for r in t.reasons]
+        listed = {r for t in failing for r in t.reasons}
+        return Outcome(Status.FAIL, f"{len(fails)} problem(s) with checkpoint evidence",
+                       tuple(fails) + tuple(e for e in a.error if e not in listed))
+    if integ.status is Status.ERROR:
+        return Outcome(Status.ERROR, f"anchor log: {integ.detail}", integ.problems)
+    return None
+
+
 def trust_outcome(a: Audit) -> Outcome:
     """Whole-log trust: PASS iff every leaf is covered by a trusted checkpoint."""
-    integ = integrity_outcome(a)
-    if integ.status in (Status.FAIL, Status.ERROR):
-        return Outcome(integ.status, "anchor log integrity did not pass", integ.problems)
+    failed = _log_fail_or_error(a)
+    if failed is not None:
+        return failed
     if a.policy is None:
         return Outcome(Status.NOT_CHECKED, "no anchor policy supplied (a policy in the repository is never used)")
-    fails = [f"checkpoint {batch_name(t.size)}: {r}" for t in a.trust if t.status is Status.FAIL for r in t.reasons]
-    if fails:
-        return Outcome(Status.FAIL, f"{len(fails)} problem(s) with checkpoint evidence", tuple(fails))
     if not a.batches:
         return Outcome(Status.NOT_CHECKED, "the anchor log is empty: nothing is anchored")
     covered = max((t.size for t in a.trust if t.status is Status.PASS), default=0)
     if covered == a.size:
         last = next(t for t in a.trust if t.size == covered)
         return Outcome(Status.PASS, f"all {a.size} leaves covered by trusted checkpoint {batch_name(covered)}, "
-                                    f"logged no later than {utc(last.time)}")  # type: ignore[arg-type]
+                                    f"logged no later than {describe_time(last.time)}")  # type: ignore[arg-type]
     reasons = tuple(f"checkpoint {batch_name(t.size)}: {r}" for t in a.trust if t.size > covered for r in t.reasons)
     detail = f"{covered} of {a.size} leaves covered by trusted, externally logged checkpoints"
     if not a.crypto:
@@ -1172,14 +1242,9 @@ SCOPE = ("inclusion no later than T only: not freshness, completeness, absence o
 def governance_outcome(repo_root: Path, lineage: Sequence[str], policy: AnchorPolicy) -> Outcome:
     """Governance for a lineage whose integrity already PASSed (verifier.py)."""
     a = audit(repo_root, policy)
-    integ = integrity_outcome(a)
-    if integ.status is Status.FAIL:
-        return Outcome(Status.FAIL, f"anchor log: {integ.detail}", integ.problems)
-    fails = [f"checkpoint {batch_name(t.size)}: {r}" for t in a.trust if t.status is Status.FAIL for r in t.reasons]
-    if fails:
-        return Outcome(Status.FAIL, f"{len(fails)} problem(s) with checkpoint evidence", tuple(fails))
-    if integ.status is Status.ERROR:
-        return Outcome(Status.ERROR, f"anchor log: {integ.detail}", integ.problems)
+    failed = _log_fail_or_error(a)
+    if failed is not None:
+        return failed
     lineage = sorted(set(lineage))
     missing = [rid for rid in lineage if rid not in a.positions]
     if missing:
@@ -1201,7 +1266,7 @@ def governance_outcome(repo_root: Path, lineage: Sequence[str], policy: AnchorPo
         Status.PASS,
         f"{len(lineage)} lineage record(s) in checkpoint {batch_name(chosen.size)} of {policy.origin}, "
         f"logged in Sigsum log {chosen.log_key_hash.hex()[:16]} and cosigned by a witness quorum "
-        f"no later than {utc(chosen.time)}; {SCOPE}",
+        f"no later than {describe_time(chosen.time)}; {SCOPE}",
         (),
         {
             "policy_sha256": policy.sha256,
@@ -1210,7 +1275,7 @@ def governance_outcome(repo_root: Path, lineage: Sequence[str], policy: AnchorPo
             "anchor_log_size": a.size,
             "log_key_hash": chosen.log_key_hash.hex(),
             "anchored_no_later_than": chosen.time,
-            "anchored_no_later_than_utc": utc(chosen.time),
+            "anchored_no_later_than_utc": utc(chosen.time),   # None after 9999-12-31T23:59:59Z
             "quorum_witnesses": list(chosen.witnesses),
             "scope": SCOPE,
         },

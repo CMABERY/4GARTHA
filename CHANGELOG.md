@@ -26,6 +26,12 @@ with public test keys and a test-only Sigsum log. Nothing has been anchored in p
   `quorum none` and small-order keys, and it is never read from the repository.
 - **Governance PASS** reports a time bound: the time at which a witness quorum had cosigned. It is
   never the earliest cosignature. PASS also carries machine-readable `evidence` in `--json`.
+  - `anchored_no_later_than` is the integer bound.
+  - `anchored_no_later_than_utc` is its UTC form, or null after 9999-12-31T23:59:59Z (Sigsum
+    timestamps go up to 2⁶³−1).
+- **Unreadable anchor files** make integrity ERROR. `ledger anchor verify --json` then reports
+  ERROR for each affected checkpoint. A contradiction in the files that were read is still FAIL,
+  for each checkpoint, for the whole log and for governance.
 - **Conformance C10, and `conformance/anchor-v1-vectors.json`.** The vectors are reproducible with
   `tools/anchor_fixtures.py`, and include RFC 6962 known answers and the C2SP signed-note example.
 - **The optional `anchor` extra** (`cryptography`). The base install stays `jsonschema`-only.
@@ -49,6 +55,9 @@ with public test keys and a test-only Sigsum log. Nothing has been anchored in p
 
 ### Tooling
 
+- Planted defects M47 to M51 re-plant the defects found in implementation review of anchoring:
+  oversized decimals crashing, an unreadable checkpoint crashing, UTC formatting crashing on a
+  valid time bound, and whole-log trust putting ERROR before FAIL.
 - Planted defects M33 to M46 cover the anchoring checks. M6 is now governance PASS without a
   policy.
 

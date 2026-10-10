@@ -4,7 +4,8 @@ assurance contract 2).
 Exit status for verify/replay: 0 the requested profile is satisfied; 2 it is
 not; 3 a required dimension is ERROR (inconclusive). For `anchor verify`: 0 the
 anchor log passes integrity (and, with --anchor-policy, every leaf is covered
-by trusted, externally logged evidence); 2 not; 3 inconclusive. Refused writes
+by trusted, externally logged evidence); 2 not; 3 integrity or trust is ERROR,
+even if the other is FAIL, as for verify (--json says which). Refused writes
 and invalid arguments (including an unusable anchor policy) exit 1 with a
 message (argparse usage errors exit 2).
 """
@@ -268,7 +269,8 @@ def cmd_anchor_verify(args: argparse.Namespace) -> int:
         _print_outcome("integrity", integrity)
         _print_outcome("trust", trust)
         for t in a.trust:
-            when = f"logged no later than {anchor.utc(t.time)}; witnesses {', '.join(t.witnesses)}" if t.time is not None else ""
+            when = (f"logged no later than {anchor.describe_time(t.time)}; witnesses {', '.join(t.witnesses)}"
+                    if t.time is not None else "")
             print(f"  checkpoint {anchor.batch_name(t.size)}  {t.status.value:<12} {when}")
             for r in t.reasons:
                 print(f"    {r}")
