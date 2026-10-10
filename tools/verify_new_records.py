@@ -9,8 +9,11 @@ inside an enforced isolation boundary (ASSURANCE.md section 7).
 `replay-if-derived` profile. It executes transform code without isolation.
 
 Also enforces the identity-model freeze: legacy v0 node manifests
-(ledger/nodes/*) are not admissible, and every path added under
-ledger/records/ must be <64 lowercase hex>.json.
+(ledger/nodes/*) are not admissible, every path added under ledger/records/
+must be <64 lowercase hex>.json, and every path added under ledger/anchors/
+must be ledger/anchors/<12 digits>/{leaves.json,checkpoint,sigsum.proof}. The
+anchor log's own consistency is checked by `ledger anchor verify` (a separate
+CI step).
 
 Exit: 0 profile satisfied (or nothing new); 2 not satisfied / inadmissible
 paths; 3 inconclusive (ERROR) or git failure.
@@ -18,6 +21,7 @@ paths; 3 inconclusive (ERROR) or git failure.
 from __future__ import annotations
 
 import argparse
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -29,6 +33,8 @@ from ledger.verifier import verify
 
 RECORDS_PREFIX = "ledger/records/"
 LEGACY_NODES_PREFIX = "ledger/nodes/"
+ANCHORS_PREFIX = "ledger/anchors/"
+ANCHOR_PATH_RE = re.compile(r"ledger/anchors/[0-9]{12}/(leaves\.json|checkpoint|sigsum\.proof)")
 KEEP = ".keep"
 
 
@@ -68,6 +74,10 @@ def main(argv: list[str] | None = None) -> int:
         for p in paths:
             if p.startswith(LEGACY_NODES_PREFIX) and p != LEGACY_NODES_PREFIX + KEEP:
                 bad.append(f"{p!r}: legacy v0 node manifests are not admissible (use 4gartha.record/1 records)")
+            elif p.startswith(ANCHORS_PREFIX) and p != ANCHORS_PREFIX + KEEP:
+                if ANCHOR_PATH_RE.fullmatch(p) is None:
+                    bad.append(f"{p!r}: expected ledger/anchors/<12-digit tree size>/"
+                               "(leaves.json|checkpoint|sigsum.proof)")
             elif p.startswith(RECORDS_PREFIX) and p != RECORDS_PREFIX + KEEP:
                 name = p[len(RECORDS_PREFIX):]
                 rid = name[: -len(".json")] if name.endswith(".json") else None

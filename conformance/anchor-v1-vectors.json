@@ -1,0 +1,1210 @@
+{
+ "description": "Language-neutral conformance vectors for 4gartha.anchor/1 (SPEC.md, 'Anchor log'). Text fields are exact bytes (UTF-8); hashes and keys are lowercase hex. Expected outcomes are normative for 4GARTHA verifiers. Fields named sigsum_go / sigsum_verify record what the Sigsum reference implementation does with the same bytes; where they differ from 'expect', 4GARTHA is deliberately stricter (ASSURANCE.md 5.7).",
+ "protocol": "4gartha.anchor/1",
+ "policy_format": "4gartha.anchor-policy/1",
+ "pinned_specifications": {
+  "sigsum_go": "sigsum.org/sigsum-go v0.14.1 (doc/sigsum-proof.md proof format version 2, doc/policy.md)",
+  "sigsum_log_spec": "github.com/sigsum/sigsum log.md at 3d7234dd7c72ae5eb3e7a35fef2cc1593bf0f4cb ('Stable version v1')",
+  "c2sp": "signed-note@v1.1.0, tlog-checkpoint@v1.1.0, tlog-cosignature@v1.1.0",
+  "rfc6962_known_answers": "github.com/transparency-dev/merkle v0.0.2 testonly/constants.go"
+ },
+ "test_keys": {
+  "warning": "TEST ONLY: seeds are public; never use these keys in a real policy",
+  "seed_derivation": "SHA-256('4gartha.anchor/1 test key' || 0x00 || name)",
+  "keys": {
+   "anchor": {
+    "seed": "9c53921074252be47fb53a3f165f3bae6d19d9f8e51c71080e9b44a9c47af3fd",
+    "public_key": "19be235bc9531b7727c7925b7e254197bcb9a0dde2faf3663e51f52ded91a192"
+   },
+   "attacker": {
+    "seed": "9d446a5c6771874f4979829b24e3d96657b46883b8e3184e8ff9b0e8731f3762",
+    "public_key": "ba92d7d51afa369b1614b8e3c241a78616124ea77f013c54ce149d93c76151db"
+   },
+   "other-submitter": {
+    "seed": "052843b2e257f04675451e6004202342dae203bda5f8f7f957fa0ebdab41c609",
+    "public_key": "ebc06b9cd704ecebca8cc5611838cff7f8fcf5163043bdd5da6ca6fdd5564412"
+   },
+   "filler": {
+    "seed": "10b8e209971bb4598911a22b1af5e201ea2b257256b531d2e2a3d283ea98e201",
+    "public_key": "399a80ad39139be02cfc95a2b2d8817006e2b2d318c2a86e2c6bcd2801b4e374"
+   },
+   "log": {
+    "seed": "9759316e2a99bdd717ef23814e16df6ebf50a45b5a49707281a59bd46802553f",
+    "public_key": "3ee73ce2f3beb6d902d574911947b6b3c92ec843736452a8ce74712011a658b9"
+   },
+   "other-log": {
+    "seed": "3c98daee0aa3d1c9d29d7f2e8186943fe7032b3a552f09b6102f80c1eb79a7d0",
+    "public_key": "64f9b229a709c7fc5b88b57ee11aa586596b8ea5310683f768d6262498d57231"
+   },
+   "w1": {
+    "seed": "334cd75a841adcc8cfe671bddfd9042396b79c1c4fbf1ff31858be39cc83fa8c",
+    "public_key": "5a37d79e6e6444e731eb08de4e063cdce75317dc004641a3b0fe100bd05c5179"
+   },
+   "w2": {
+    "seed": "e7da2285e7a568418b4c3e790f9156ce59b8721d71479c82ddf5e690e45cd63e",
+    "public_key": "bdfbd9cd6b5011af98df9f50af75a4ccad14c1efced693503fe4b56766c0bb39"
+   },
+   "w3": {
+    "seed": "d312054913718df2ba181607711bcf605eacaae38d30fec3efcce0a0e4490795",
+    "public_key": "e28443bb5022db638c93302a2e1b289a0dbd9905c0da755c943a6c747f5bdd64"
+   },
+   "w4": {
+    "seed": "e62f483187b42aff6d774090f6dedaa36c6511061885a348f039661848a6b8e0",
+    "public_key": "8e866b3168219063140480dce6a42249a4fbd9a38ad824dc3f650eed2a59ff50"
+   },
+   "w5": {
+    "seed": "b9099d9decc0c70d9b35d64e1032f0b8deb5fbc6f4a2e937f4d0d5bfa7ebc0c1",
+    "public_key": "d3d27cad89529bee06b9921c2f1cf844aaa3cf6defcef87cf24ad81a4fb4f04a"
+   },
+   "w-unknown": {
+    "seed": "66b9df074b3c4aa0e4700066012f3df175c3fb40cbeb89c27cde0e810aa20a7d",
+    "public_key": "a2c3e1c07d3a54019c9e7275ef311b159c9ede69f5a3acd123325e23af8e5e7b"
+   }
+  }
+ },
+ "test_origin": "4gartha.test/anchor/1",
+ "rfc6962": {
+  "leaves": [
+   "",
+   "00",
+   "10",
+   "2021",
+   "3031",
+   "40414243",
+   "5051525354555657",
+   "606162636465666768696a6b6c6d6e6f"
+  ],
+  "roots": [
+   "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+   "6e340b9cffb37a989ca544e6bb780a2c78901d3fb33738768511a30617afa01d",
+   "fac54203e7cc696cf0dfcb42c92a1d9dbaf70ad9e621f4bd8d98662f00e3c125",
+   "aeb6bcfe274b70a14fb067a5e5578264db0fa9b51af5e0ba159158f329e06e77",
+   "d37ee418976dd95753c1c73862b9398fa2a2cf9b4ff0fdfe8b30cd95209614b7",
+   "4e3bbb1f7b478dcfe71fb631631519a3bca12c9aefca1612bfce4c13a86264d4",
+   "76e67dadbcdf1e10e1b74ddc608abd2f98dfb16fbce75277b5232a127f2087ef",
+   "ddb89be403809e325750d3d263cd78929c2942b7942a34b77e122c9594a74c8c",
+   "5dc9da79a70659a9ad559cb701ded9a2ab9d823aad2f4960cfe370eff4604328"
+  ]
+ },
+ "signed_note_example": {
+  "vkey": "example.com/foo+530d903a+AekyeRrm56hApGFkyQR4ZCbV54Id2LKaANYcrnKv3U2k",
+  "note": "This is an example message.\n\n— example.com/foo Uw2QOkn8srV1yJGh2VYRlL1Tnagv1YEq6TfXppzi2ONncAlTgK7Ztg1ERYNZXsYjOBH3mFXmRKuwHjG1Yu72IneyaQM=\n"
+ },
+ "anchor_tree": {
+  "records": [
+   "43f3f35ac8f953053184bb682fcda966fe6efd8eca9eacc803ec3ed1a0d4fcfa",
+   "613419ef774485f0ed5c555c1369b8966e7f17757e6ef5f64bd0ed9199d26af9",
+   "7db16c936145f9b34f4bad8702e86cf60466e824b74bde9cf3f07c47274126f3",
+   "97d6d90079596f2f8638fcfd763640ab87025da0495d702e58285ff8232c11e8",
+   "b67631b451ad9201db4745144e1bb530dc0559ae4a3cf773f1c72e1d4d4fa44c",
+   "ea9f9b1c5ce90f838d59ba10b04932df6420c67777463d4ee36843ff7074adf9",
+   "fcd996370efc9ba74ae9ee3a3451c0f5b9ded3b581323c079e9e4f12ab8b6382"
+  ],
+  "leaf_hashes": [
+   "c3986414a60bea9647d55319d8db3a5826dedb8b550789c4771618970fa65a1b",
+   "e686fa60cf0f6678a579bd8d380c0b1bd4a081c9d59bb6d4b392c0e1361f1534",
+   "7079fc118a6319b6baf407a0128f03030dd3f6a3ae078b2a2cd211c499eceb6e",
+   "62612e9b6488c2b7d75ad76ab2d36c71bea2377325040a424f69291dc8617b2e",
+   "fb3cf9d633dcf8864661673617947b798ac3d7bc7c5dfe9c85d407878b17e5f8",
+   "5be7600e78de5bfacaddb9ac30df5feb705cde77f988c8a6c3b5979c2ca35564",
+   "a2b89618bc307c59e7b5835d457508788f05e84fdc0417b5592d93e14fc7147c"
+  ],
+  "roots": [
+   "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+   "c3986414a60bea9647d55319d8db3a5826dedb8b550789c4771618970fa65a1b",
+   "3ca52d3158b916c93a4e9bdaa56c3e16f3714224c4127d64660959234afac6c0",
+   "50e88321b7d8a04fe74200c7aed1702f6718c63b5977b7116f851c0843fbb879",
+   "7ff0a14d9e9d18429652fe53909639b6e26d42fc0d2c3435e34df4ab28123f5f",
+   "7787417987960bc3fd9b86f7702ec38baa7a518b3f86b807cdbadb23be7202de",
+   "21d38d9a61e6088a4e1b58a4717dec12973d9e55112f31b0abd4686744085904",
+   "ff542af7be88e8c77341b126bc9704166dc5b4e42f4eb36e873633505b032aa3"
+  ],
+  "inclusion": [
+   {
+    "index": 0,
+    "size": 1,
+    "path": []
+   },
+   {
+    "index": 0,
+    "size": 2,
+    "path": [
+     "e686fa60cf0f6678a579bd8d380c0b1bd4a081c9d59bb6d4b392c0e1361f1534"
+    ]
+   },
+   {
+    "index": 1,
+    "size": 2,
+    "path": [
+     "c3986414a60bea9647d55319d8db3a5826dedb8b550789c4771618970fa65a1b"
+    ]
+   },
+   {
+    "index": 0,
+    "size": 3,
+    "path": [
+     "e686fa60cf0f6678a579bd8d380c0b1bd4a081c9d59bb6d4b392c0e1361f1534",
+     "7079fc118a6319b6baf407a0128f03030dd3f6a3ae078b2a2cd211c499eceb6e"
+    ]
+   },
+   {
+    "index": 1,
+    "size": 3,
+    "path": [
+     "c3986414a60bea9647d55319d8db3a5826dedb8b550789c4771618970fa65a1b",
+     "7079fc118a6319b6baf407a0128f03030dd3f6a3ae078b2a2cd211c499eceb6e"
+    ]
+   },
+   {
+    "index": 2,
+    "size": 3,
+    "path": [
+     "3ca52d3158b916c93a4e9bdaa56c3e16f3714224c4127d64660959234afac6c0"
+    ]
+   },
+   {
+    "index": 0,
+    "size": 4,
+    "path": [
+     "e686fa60cf0f6678a579bd8d380c0b1bd4a081c9d59bb6d4b392c0e1361f1534",
+     "ba7d8da8e7b4d41a3387b6f5847a0ed0de488ce3e8754a864f4c0c0ea42b88b7"
+    ]
+   },
+   {
+    "index": 1,
+    "size": 4,
+    "path": [
+     "c3986414a60bea9647d55319d8db3a5826dedb8b550789c4771618970fa65a1b",
+     "ba7d8da8e7b4d41a3387b6f5847a0ed0de488ce3e8754a864f4c0c0ea42b88b7"
+    ]
+   },
+   {
+    "index": 2,
+    "size": 4,
+    "path": [
+     "62612e9b6488c2b7d75ad76ab2d36c71bea2377325040a424f69291dc8617b2e",
+     "3ca52d3158b916c93a4e9bdaa56c3e16f3714224c4127d64660959234afac6c0"
+    ]
+   },
+   {
+    "index": 3,
+    "size": 4,
+    "path": [
+     "7079fc118a6319b6baf407a0128f03030dd3f6a3ae078b2a2cd211c499eceb6e",
+     "3ca52d3158b916c93a4e9bdaa56c3e16f3714224c4127d64660959234afac6c0"
+    ]
+   },
+   {
+    "index": 0,
+    "size": 5,
+    "path": [
+     "e686fa60cf0f6678a579bd8d380c0b1bd4a081c9d59bb6d4b392c0e1361f1534",
+     "ba7d8da8e7b4d41a3387b6f5847a0ed0de488ce3e8754a864f4c0c0ea42b88b7",
+     "fb3cf9d633dcf8864661673617947b798ac3d7bc7c5dfe9c85d407878b17e5f8"
+    ]
+   },
+   {
+    "index": 1,
+    "size": 5,
+    "path": [
+     "c3986414a60bea9647d55319d8db3a5826dedb8b550789c4771618970fa65a1b",
+     "ba7d8da8e7b4d41a3387b6f5847a0ed0de488ce3e8754a864f4c0c0ea42b88b7",
+     "fb3cf9d633dcf8864661673617947b798ac3d7bc7c5dfe9c85d407878b17e5f8"
+    ]
+   },
+   {
+    "index": 2,
+    "size": 5,
+    "path": [
+     "62612e9b6488c2b7d75ad76ab2d36c71bea2377325040a424f69291dc8617b2e",
+     "3ca52d3158b916c93a4e9bdaa56c3e16f3714224c4127d64660959234afac6c0",
+     "fb3cf9d633dcf8864661673617947b798ac3d7bc7c5dfe9c85d407878b17e5f8"
+    ]
+   },
+   {
+    "index": 3,
+    "size": 5,
+    "path": [
+     "7079fc118a6319b6baf407a0128f03030dd3f6a3ae078b2a2cd211c499eceb6e",
+     "3ca52d3158b916c93a4e9bdaa56c3e16f3714224c4127d64660959234afac6c0",
+     "fb3cf9d633dcf8864661673617947b798ac3d7bc7c5dfe9c85d407878b17e5f8"
+    ]
+   },
+   {
+    "index": 4,
+    "size": 5,
+    "path": [
+     "7ff0a14d9e9d18429652fe53909639b6e26d42fc0d2c3435e34df4ab28123f5f"
+    ]
+   },
+   {
+    "index": 0,
+    "size": 6,
+    "path": [
+     "e686fa60cf0f6678a579bd8d380c0b1bd4a081c9d59bb6d4b392c0e1361f1534",
+     "ba7d8da8e7b4d41a3387b6f5847a0ed0de488ce3e8754a864f4c0c0ea42b88b7",
+     "2961f3033ecc928b26e09b5861ae7656b828a76bc4dda9bd93fc7a4554df723d"
+    ]
+   },
+   {
+    "index": 1,
+    "size": 6,
+    "path": [
+     "c3986414a60bea9647d55319d8db3a5826dedb8b550789c4771618970fa65a1b",
+     "ba7d8da8e7b4d41a3387b6f5847a0ed0de488ce3e8754a864f4c0c0ea42b88b7",
+     "2961f3033ecc928b26e09b5861ae7656b828a76bc4dda9bd93fc7a4554df723d"
+    ]
+   },
+   {
+    "index": 2,
+    "size": 6,
+    "path": [
+     "62612e9b6488c2b7d75ad76ab2d36c71bea2377325040a424f69291dc8617b2e",
+     "3ca52d3158b916c93a4e9bdaa56c3e16f3714224c4127d64660959234afac6c0",
+     "2961f3033ecc928b26e09b5861ae7656b828a76bc4dda9bd93fc7a4554df723d"
+    ]
+   },
+   {
+    "index": 3,
+    "size": 6,
+    "path": [
+     "7079fc118a6319b6baf407a0128f03030dd3f6a3ae078b2a2cd211c499eceb6e",
+     "3ca52d3158b916c93a4e9bdaa56c3e16f3714224c4127d64660959234afac6c0",
+     "2961f3033ecc928b26e09b5861ae7656b828a76bc4dda9bd93fc7a4554df723d"
+    ]
+   },
+   {
+    "index": 4,
+    "size": 6,
+    "path": [
+     "5be7600e78de5bfacaddb9ac30df5feb705cde77f988c8a6c3b5979c2ca35564",
+     "7ff0a14d9e9d18429652fe53909639b6e26d42fc0d2c3435e34df4ab28123f5f"
+    ]
+   },
+   {
+    "index": 5,
+    "size": 6,
+    "path": [
+     "fb3cf9d633dcf8864661673617947b798ac3d7bc7c5dfe9c85d407878b17e5f8",
+     "7ff0a14d9e9d18429652fe53909639b6e26d42fc0d2c3435e34df4ab28123f5f"
+    ]
+   },
+   {
+    "index": 0,
+    "size": 7,
+    "path": [
+     "e686fa60cf0f6678a579bd8d380c0b1bd4a081c9d59bb6d4b392c0e1361f1534",
+     "ba7d8da8e7b4d41a3387b6f5847a0ed0de488ce3e8754a864f4c0c0ea42b88b7",
+     "39c9ccb27f7cdd8cd9e09f6b88798eb37758c96eb47bdd93bd39dd18f4ab0386"
+    ]
+   },
+   {
+    "index": 1,
+    "size": 7,
+    "path": [
+     "c3986414a60bea9647d55319d8db3a5826dedb8b550789c4771618970fa65a1b",
+     "ba7d8da8e7b4d41a3387b6f5847a0ed0de488ce3e8754a864f4c0c0ea42b88b7",
+     "39c9ccb27f7cdd8cd9e09f6b88798eb37758c96eb47bdd93bd39dd18f4ab0386"
+    ]
+   },
+   {
+    "index": 2,
+    "size": 7,
+    "path": [
+     "62612e9b6488c2b7d75ad76ab2d36c71bea2377325040a424f69291dc8617b2e",
+     "3ca52d3158b916c93a4e9bdaa56c3e16f3714224c4127d64660959234afac6c0",
+     "39c9ccb27f7cdd8cd9e09f6b88798eb37758c96eb47bdd93bd39dd18f4ab0386"
+    ]
+   },
+   {
+    "index": 3,
+    "size": 7,
+    "path": [
+     "7079fc118a6319b6baf407a0128f03030dd3f6a3ae078b2a2cd211c499eceb6e",
+     "3ca52d3158b916c93a4e9bdaa56c3e16f3714224c4127d64660959234afac6c0",
+     "39c9ccb27f7cdd8cd9e09f6b88798eb37758c96eb47bdd93bd39dd18f4ab0386"
+    ]
+   },
+   {
+    "index": 4,
+    "size": 7,
+    "path": [
+     "5be7600e78de5bfacaddb9ac30df5feb705cde77f988c8a6c3b5979c2ca35564",
+     "a2b89618bc307c59e7b5835d457508788f05e84fdc0417b5592d93e14fc7147c",
+     "7ff0a14d9e9d18429652fe53909639b6e26d42fc0d2c3435e34df4ab28123f5f"
+    ]
+   },
+   {
+    "index": 5,
+    "size": 7,
+    "path": [
+     "fb3cf9d633dcf8864661673617947b798ac3d7bc7c5dfe9c85d407878b17e5f8",
+     "a2b89618bc307c59e7b5835d457508788f05e84fdc0417b5592d93e14fc7147c",
+     "7ff0a14d9e9d18429652fe53909639b6e26d42fc0d2c3435e34df4ab28123f5f"
+    ]
+   },
+   {
+    "index": 6,
+    "size": 7,
+    "path": [
+     "2961f3033ecc928b26e09b5861ae7656b828a76bc4dda9bd93fc7a4554df723d",
+     "7ff0a14d9e9d18429652fe53909639b6e26d42fc0d2c3435e34df4ab28123f5f"
+    ]
+   }
+  ]
+ },
+ "leaves_json": [
+  {
+   "name": "valid",
+   "text": "{\"previous_size\":4,\"protocol\":\"4gartha.anchor/1\",\"records\":[\"613419ef774485f0ed5c555c1369b8966e7f17757e6ef5f64bd0ed9199d26af9\",\"b67631b451ad9201db4745144e1bb530dc0559ae4a3cf773f1c72e1d4d4fa44c\",\"ea9f9b1c5ce90f838d59ba10b04932df6420c67777463d4ee36843ff7074adf9\"]}",
+   "expect": "accept",
+   "reason": null
+  },
+  {
+   "name": "valid-first-batch",
+   "text": "{\"previous_size\":0,\"protocol\":\"4gartha.anchor/1\",\"records\":[\"613419ef774485f0ed5c555c1369b8966e7f17757e6ef5f64bd0ed9199d26af9\"]}",
+   "expect": "accept",
+   "reason": null
+  },
+  {
+   "name": "whitespace",
+   "text": "{\"previous_size\":4, \"protocol\":\"4gartha.anchor/1\",\"records\":[\"613419ef774485f0ed5c555c1369b8966e7f17757e6ef5f64bd0ed9199d26af9\",\"b67631b451ad9201db4745144e1bb530dc0559ae4a3cf773f1c72e1d4d4fa44c\",\"ea9f9b1c5ce90f838d59ba10b04932df6420c67777463d4ee36843ff7074adf9\"]}",
+   "expect": "reject",
+   "reason": "not canonical JSON"
+  },
+  {
+   "name": "trailing-newline",
+   "text": "{\"previous_size\":4,\"protocol\":\"4gartha.anchor/1\",\"records\":[\"613419ef774485f0ed5c555c1369b8966e7f17757e6ef5f64bd0ed9199d26af9\",\"b67631b451ad9201db4745144e1bb530dc0559ae4a3cf773f1c72e1d4d4fa44c\",\"ea9f9b1c5ce90f838d59ba10b04932df6420c67777463d4ee36843ff7074adf9\"]}\n",
+   "expect": "reject",
+   "reason": "not canonical JSON"
+  },
+  {
+   "name": "key-order",
+   "text": "{\"protocol\":\"4gartha.anchor/1\",\"previous_size\":4,\"records\":[\"613419ef774485f0ed5c555c1369b8966e7f17757e6ef5f64bd0ed9199d26af9\",\"b67631b451ad9201db4745144e1bb530dc0559ae4a3cf773f1c72e1d4d4fa44c\",\"ea9f9b1c5ce90f838d59ba10b04932df6420c67777463d4ee36843ff7074adf9\"]}",
+   "expect": "reject",
+   "reason": "not canonical JSON"
+  },
+  {
+   "name": "unsorted-records",
+   "text": "{\"previous_size\":4,\"protocol\":\"4gartha.anchor/1\",\"records\":[\"b67631b451ad9201db4745144e1bb530dc0559ae4a3cf773f1c72e1d4d4fa44c\",\"613419ef774485f0ed5c555c1369b8966e7f17757e6ef5f64bd0ed9199d26af9\",\"ea9f9b1c5ce90f838d59ba10b04932df6420c67777463d4ee36843ff7074adf9\"]}",
+   "expect": "reject",
+   "reason": "strictly ascending"
+  },
+  {
+   "name": "duplicate-record",
+   "text": "{\"previous_size\":4,\"protocol\":\"4gartha.anchor/1\",\"records\":[\"613419ef774485f0ed5c555c1369b8966e7f17757e6ef5f64bd0ed9199d26af9\",\"613419ef774485f0ed5c555c1369b8966e7f17757e6ef5f64bd0ed9199d26af9\",\"b67631b451ad9201db4745144e1bb530dc0559ae4a3cf773f1c72e1d4d4fa44c\"]}",
+   "expect": "reject",
+   "reason": "strictly ascending"
+  },
+  {
+   "name": "extra-key",
+   "text": "{\"previous_size\":4,\"protocol\":\"4gartha.anchor/1\",\"records\":[\"613419ef774485f0ed5c555c1369b8966e7f17757e6ef5f64bd0ed9199d26af9\",\"b67631b451ad9201db4745144e1bb530dc0559ae4a3cf773f1c72e1d4d4fa44c\",\"ea9f9b1c5ce90f838d59ba10b04932df6420c67777463d4ee36843ff7074adf9\"],\"size\":7}",
+   "expect": "reject",
+   "reason": "exactly previous_size, protocol and records"
+  },
+  {
+   "name": "missing-protocol",
+   "text": "{\"previous_size\":4,\"records\":[\"613419ef774485f0ed5c555c1369b8966e7f17757e6ef5f64bd0ed9199d26af9\",\"b67631b451ad9201db4745144e1bb530dc0559ae4a3cf773f1c72e1d4d4fa44c\",\"ea9f9b1c5ce90f838d59ba10b04932df6420c67777463d4ee36843ff7074adf9\"]}",
+   "expect": "reject",
+   "reason": "exactly previous_size, protocol and records"
+  },
+  {
+   "name": "wrong-protocol",
+   "text": "{\"previous_size\":4,\"protocol\":\"4gartha.anchor/2\",\"records\":[\"613419ef774485f0ed5c555c1369b8966e7f17757e6ef5f64bd0ed9199d26af9\",\"b67631b451ad9201db4745144e1bb530dc0559ae4a3cf773f1c72e1d4d4fa44c\",\"ea9f9b1c5ce90f838d59ba10b04932df6420c67777463d4ee36843ff7074adf9\"]}",
+   "expect": "reject",
+   "reason": "protocol is"
+  },
+  {
+   "name": "negative-previous-size",
+   "text": "{\"previous_size\":-1,\"protocol\":\"4gartha.anchor/1\",\"records\":[\"613419ef774485f0ed5c555c1369b8966e7f17757e6ef5f64bd0ed9199d26af9\",\"b67631b451ad9201db4745144e1bb530dc0559ae4a3cf773f1c72e1d4d4fa44c\",\"ea9f9b1c5ce90f838d59ba10b04932df6420c67777463d4ee36843ff7074adf9\"]}",
+   "expect": "reject",
+   "reason": "non-negative integer"
+  },
+  {
+   "name": "boolean-previous-size",
+   "text": "{\"previous_size\":true,\"protocol\":\"4gartha.anchor/1\",\"records\":[\"613419ef774485f0ed5c555c1369b8966e7f17757e6ef5f64bd0ed9199d26af9\",\"b67631b451ad9201db4745144e1bb530dc0559ae4a3cf773f1c72e1d4d4fa44c\",\"ea9f9b1c5ce90f838d59ba10b04932df6420c67777463d4ee36843ff7074adf9\"]}",
+   "expect": "reject",
+   "reason": "non-negative integer"
+  },
+  {
+   "name": "float-previous-size",
+   "text": "{\"previous_size\":4.0,\"protocol\":\"4gartha.anchor/1\",\"records\":[\"613419ef774485f0ed5c555c1369b8966e7f17757e6ef5f64bd0ed9199d26af9\",\"b67631b451ad9201db4745144e1bb530dc0559ae4a3cf773f1c72e1d4d4fa44c\",\"ea9f9b1c5ce90f838d59ba10b04932df6420c67777463d4ee36843ff7074adf9\"]}",
+   "expect": "reject",
+   "reason": "not canonical JSON"
+  },
+  {
+   "name": "empty-records",
+   "text": "{\"previous_size\":4,\"protocol\":\"4gartha.anchor/1\",\"records\":[]}",
+   "expect": "reject",
+   "reason": "non-empty array"
+  },
+  {
+   "name": "uppercase-record-id",
+   "text": "{\"previous_size\":4,\"protocol\":\"4gartha.anchor/1\",\"records\":[\"613419EF774485F0ED5C555C1369B8966E7F17757E6EF5F64BD0ED9199D26AF9\"]}",
+   "expect": "reject",
+   "reason": "not a record ID"
+  },
+  {
+   "name": "artifact-style-prefix",
+   "text": "{\"previous_size\":4,\"protocol\":\"4gartha.anchor/1\",\"records\":[\"sha256:613419ef774485f0ed5c555c1369b8966e7f17757e6ef5f64bd0ed9199d26af9\"]}",
+   "expect": "reject",
+   "reason": "not a record ID"
+  }
+ ],
+ "checkpoints": [
+  {
+   "name": "valid",
+   "note": "4gartha.test/anchor/1\n7\n/1Qq976I6MdzQbEmvJcEFm3FtOQvTrNuhzYzUFsDKqM=\n\n— 4gartha.test/anchor/1 T9o9soIwFBkHCYgdVvussgzy4HHDNNRiVBU3P8NMG4np08hCLEEg+nDgcyc7Dp/U13AXfWs4azCwgTRDNdNC0g3IgQE=\n",
+   "origin": "4gartha.test/anchor/1",
+   "public_key": "19be235bc9531b7727c7925b7e254197bcb9a0dde2faf3663e51f52ded91a192",
+   "expect": "trusted",
+   "reason": null,
+   "sigsum_go": "accept",
+   "x_mod_note": "accept"
+  },
+  {
+   "name": "valid-plus-unknown-signature",
+   "note": "4gartha.test/anchor/1\n7\n/1Qq976I6MdzQbEmvJcEFm3FtOQvTrNuhzYzUFsDKqM=\n\n— 4gartha.test/anchor/1 T9o9soIwFBkHCYgdVvussgzy4HHDNNRiVBU3P8NMG4np08hCLEEg+nDgcyc7Dp/U13AXfWs4azCwgTRDNdNC0g3IgQE=\n— other.example/key mtlct/1HvgEyJtttQNVpQ3g5Sv9lWKwodKd3B3IeSUfvvsD8WhRbpG2f06xneCs+RJwm7Shw4DHkZbXIoVaideVP0wM=\n",
+   "origin": "4gartha.test/anchor/1",
+   "public_key": "19be235bc9531b7727c7925b7e254197bcb9a0dde2faf3663e51f52ded91a192",
+   "expect": "trusted",
+   "reason": null,
+   "sigsum_go": "accept",
+   "x_mod_note": "accept"
+  },
+  {
+   "name": "unknown-key-under-origin-name",
+   "note": "4gartha.test/anchor/1\n7\n/1Qq976I6MdzQbEmvJcEFm3FtOQvTrNuhzYzUFsDKqM=\n\n— 4gartha.test/anchor/1 P3aMIHn/lYYlTHpR2F/4AX0VYCMjPO9LJ4BIhvS8MC7WBqQNFb6VwT4VoVv9+E6jA2DpcgetJ1gv0tj6l8G/RpfQ5ww=\n",
+   "origin": "4gartha.test/anchor/1",
+   "public_key": "19be235bc9531b7727c7925b7e254197bcb9a0dde2faf3663e51f52ded91a192",
+   "expect": "untrusted",
+   "reason": "no signature by the policy's anchor key",
+   "sigsum_go": "reject",
+   "x_mod_note": "reject"
+  },
+  {
+   "name": "unknown-key-and-name",
+   "note": "4gartha.test/anchor/1\n7\n/1Qq976I6MdzQbEmvJcEFm3FtOQvTrNuhzYzUFsDKqM=\n\n— attacker.example/key yyPiR3n/lYYlTHpR2F/4AX0VYCMjPO9LJ4BIhvS8MC7WBqQNFb6VwT4VoVv9+E6jA2DpcgetJ1gv0tj6l8G/RpfQ5ww=\n",
+   "origin": "4gartha.test/anchor/1",
+   "public_key": "19be235bc9531b7727c7925b7e254197bcb9a0dde2faf3663e51f52ded91a192",
+   "expect": "untrusted",
+   "reason": "no signature by the policy's anchor key",
+   "sigsum_go": "reject",
+   "x_mod_note": "reject"
+  },
+  {
+   "name": "key-id-collision",
+   "note": "4gartha.test/anchor/1\n7\n/1Qq976I6MdzQbEmvJcEFm3FtOQvTrNuhzYzUFsDKqM=\n\n— 4gartha.test/anchor/1 T9o9snn/lYYlTHpR2F/4AX0VYCMjPO9LJ4BIhvS8MC7WBqQNFb6VwT4VoVv9+E6jA2DpcgetJ1gv0tj6l8G/RpfQ5ww=\n",
+   "origin": "4gartha.test/anchor/1",
+   "public_key": "19be235bc9531b7727c7925b7e254197bcb9a0dde2faf3663e51f52ded91a192",
+   "expect": "invalid",
+   "reason": "does not verify",
+   "sigsum_go": "reject",
+   "x_mod_note": "reject"
+  },
+  {
+   "name": "wrong-content-size",
+   "note": "4gartha.test/anchor/1\n8\n/1Qq976I6MdzQbEmvJcEFm3FtOQvTrNuhzYzUFsDKqM=\n\n— 4gartha.test/anchor/1 T9o9soIwFBkHCYgdVvussgzy4HHDNNRiVBU3P8NMG4np08hCLEEg+nDgcyc7Dp/U13AXfWs4azCwgTRDNdNC0g3IgQE=\n",
+   "origin": "4gartha.test/anchor/1",
+   "public_key": "19be235bc9531b7727c7925b7e254197bcb9a0dde2faf3663e51f52ded91a192",
+   "expect": "invalid",
+   "reason": "does not verify",
+   "sigsum_go": "reject",
+   "x_mod_note": "reject"
+  },
+  {
+   "name": "wrong-content-root",
+   "note": "4gartha.test/anchor/1\n7\n/lQq976I6MdzQbEmvJcEFm3FtOQvTrNuhzYzUFsDKqM=\n\n— 4gartha.test/anchor/1 T9o9soIwFBkHCYgdVvussgzy4HHDNNRiVBU3P8NMG4np08hCLEEg+nDgcyc7Dp/U13AXfWs4azCwgTRDNdNC0g3IgQE=\n",
+   "origin": "4gartha.test/anchor/1",
+   "public_key": "19be235bc9531b7727c7925b7e254197bcb9a0dde2faf3663e51f52ded91a192",
+   "expect": "invalid",
+   "reason": "does not verify",
+   "sigsum_go": "reject",
+   "x_mod_note": "reject"
+  },
+  {
+   "name": "truncated-signature",
+   "note": "4gartha.test/anchor/1\n7\n/1Qq976I6MdzQbEmvJcEFm3FtOQvTrNuhzYzUFsDKqM=\n\n— 4gartha.test/anchor/1 T9o9soIwFBkHCYgdVvussgzy4HHDNNRiVBU3P8NMG4np08hCLEEg+nDgcyc7Dp/U13AXfWs4azCwgTRDNdNC0g3IgQ==\n",
+   "origin": "4gartha.test/anchor/1",
+   "public_key": "19be235bc9531b7727c7925b7e254197bcb9a0dde2faf3663e51f52ded91a192",
+   "expect": "invalid",
+   "reason": "not an Ed25519 signature",
+   "sigsum_go": "reject",
+   "x_mod_note": "reject"
+  },
+  {
+   "name": "crlf",
+   "note": "4gartha.test/anchor/1\r\n7\r\n/1Qq976I6MdzQbEmvJcEFm3FtOQvTrNuhzYzUFsDKqM=\r\n\r\n— 4gartha.test/anchor/1 T9o9soIwFBkHCYgdVvussgzy4HHDNNRiVBU3P8NMG4np08hCLEEg+nDgcyc7Dp/U13AXfWs4azCwgTRDNdNC0g3IgQE=\r\n",
+   "origin": "4gartha.test/anchor/1",
+   "public_key": "19be235bc9531b7727c7925b7e254197bcb9a0dde2faf3663e51f52ded91a192",
+   "expect": "malformed",
+   "reason": "control character",
+   "sigsum_go": "reject",
+   "x_mod_note": "reject"
+  },
+  {
+   "name": "no-blank-line",
+   "note": "4gartha.test/anchor/1\n7\n/1Qq976I6MdzQbEmvJcEFm3FtOQvTrNuhzYzUFsDKqM=\n— 4gartha.test/anchor/1 T9o9soIwFBkHCYgdVvussgzy4HHDNNRiVBU3P8NMG4np08hCLEEg+nDgcyc7Dp/U13AXfWs4azCwgTRDNdNC0g3IgQE=\n",
+   "origin": "4gartha.test/anchor/1",
+   "public_key": "19be235bc9531b7727c7925b7e254197bcb9a0dde2faf3663e51f52ded91a192",
+   "expect": "malformed",
+   "reason": "no blank line",
+   "sigsum_go": "reject",
+   "x_mod_note": "reject"
+  },
+  {
+   "name": "missing-final-newline",
+   "note": "4gartha.test/anchor/1\n7\n/1Qq976I6MdzQbEmvJcEFm3FtOQvTrNuhzYzUFsDKqM=\n\n— 4gartha.test/anchor/1 T9o9soIwFBkHCYgdVvussgzy4HHDNNRiVBU3P8NMG4np08hCLEEg+nDgcyc7Dp/U13AXfWs4azCwgTRDNdNC0g3IgQE=",
+   "origin": "4gartha.test/anchor/1",
+   "public_key": "19be235bc9531b7727c7925b7e254197bcb9a0dde2faf3663e51f52ded91a192",
+   "expect": "malformed",
+   "reason": "does not end with a newline",
+   "sigsum_go": "reject",
+   "x_mod_note": "reject"
+  },
+  {
+   "name": "extension-line",
+   "note": "4gartha.test/anchor/1\n7\n/1Qq976I6MdzQbEmvJcEFm3FtOQvTrNuhzYzUFsDKqM=\nextension\n\n— 4gartha.test/anchor/1 T9o9soG7mfX31sWvVn7+oR9XniqOqhjljigRlVDzS5hbYRGpWoW6mORorw/L/Nhf27aaFhqAuKif6D/aZIempiPAsQk=\n",
+   "origin": "4gartha.test/anchor/1",
+   "public_key": "19be235bc9531b7727c7925b7e254197bcb9a0dde2faf3663e51f52ded91a192",
+   "expect": "malformed",
+   "reason": "no extension lines",
+   "sigsum_go": "reject",
+   "x_mod_note": "accept"
+  },
+  {
+   "name": "size-leading-zero",
+   "note": "4gartha.test/anchor/1\n07\n/1Qq976I6MdzQbEmvJcEFm3FtOQvTrNuhzYzUFsDKqM=\n\n— 4gartha.test/anchor/1 T9o9slMK+QfziR7l0LIs2k2sSlF/ZZN5iwIzSUrZ9/v6Nkdj7ag5RPWMJYWGw4Vqj0+kk1OXvcfOcxPO1y1x1MqwUgo=\n",
+   "origin": "4gartha.test/anchor/1",
+   "public_key": "19be235bc9531b7727c7925b7e254197bcb9a0dde2faf3663e51f52ded91a192",
+   "expect": "malformed",
+   "reason": "canonical decimal",
+   "sigsum_go": "reject",
+   "x_mod_note": "accept"
+  },
+  {
+   "name": "root-noncanonical-base64",
+   "note": "4gartha.test/anchor/1\n7\n/1Qq976I6MdzQbEmvJcEFm3FtOQvTrNuhzYzUFsDKqN=\n\n— 4gartha.test/anchor/1 T9o9so2JFLXnezt4ElTwIPY431d4gxNronEeqnkfNbrQVs94I8YsJ3/fkV2eNK3HSnBn9ng/hPXGG99KuQtQdvbz/wc=\n",
+   "origin": "4gartha.test/anchor/1",
+   "public_key": "19be235bc9531b7727c7925b7e254197bcb9a0dde2faf3663e51f52ded91a192",
+   "expect": "malformed",
+   "reason": "canonical base64",
+   "sigsum_go": "reject",
+   "x_mod_note": "accept"
+  },
+  {
+   "name": "signature-noncanonical-base64",
+   "note": "4gartha.test/anchor/1\n7\n/1Qq976I6MdzQbEmvJcEFm3FtOQvTrNuhzYzUFsDKqM=\n\n— 4gartha.test/anchor/1 T9o9soIwFBkHCYgdVvussgzy4HHDNNRiVBU3P8NMG4np08hCLEEg+nDgcyc7Dp/U13AXfWs4azCwgTRDNdNC0g3IgQF=\n",
+   "origin": "4gartha.test/anchor/1",
+   "public_key": "19be235bc9531b7727c7925b7e254197bcb9a0dde2faf3663e51f52ded91a192",
+   "expect": "malformed",
+   "reason": "not canonical base64",
+   "sigsum_go": "accept",
+   "x_mod_note": "accept"
+  },
+  {
+   "name": "duplicate-signature-line",
+   "note": "4gartha.test/anchor/1\n7\n/1Qq976I6MdzQbEmvJcEFm3FtOQvTrNuhzYzUFsDKqM=\n\n— 4gartha.test/anchor/1 T9o9soIwFBkHCYgdVvussgzy4HHDNNRiVBU3P8NMG4np08hCLEEg+nDgcyc7Dp/U13AXfWs4azCwgTRDNdNC0g3IgQE=\n— 4gartha.test/anchor/1 T9o9soIwFBkHCYgdVvussgzy4HHDNNRiVBU3P8NMG4np08hCLEEg+nDgcyc7Dp/U13AXfWs4azCwgTRDNdNC0g3IgQE=\n",
+   "origin": "4gartha.test/anchor/1",
+   "public_key": "19be235bc9531b7727c7925b7e254197bcb9a0dde2faf3663e51f52ded91a192",
+   "expect": "malformed",
+   "reason": "same key name and key ID",
+   "sigsum_go": "reject",
+   "x_mod_note": "accept"
+  },
+  {
+   "name": "hyphen-for-em-dash",
+   "note": "4gartha.test/anchor/1\n7\n/1Qq976I6MdzQbEmvJcEFm3FtOQvTrNuhzYzUFsDKqM=\n\n- 4gartha.test/anchor/1 T9o9soIwFBkHCYgdVvussgzy4HHDNNRiVBU3P8NMG4np08hCLEEg+nDgcyc7Dp/U13AXfWs4azCwgTRDNdNC0g3IgQE=\n",
+   "origin": "4gartha.test/anchor/1",
+   "public_key": "19be235bc9531b7727c7925b7e254197bcb9a0dde2faf3663e51f52ded91a192",
+   "expect": "malformed",
+   "reason": "is not",
+   "sigsum_go": "reject",
+   "x_mod_note": "reject"
+  },
+  {
+   "name": "double-space-in-signature-line",
+   "note": "4gartha.test/anchor/1\n7\n/1Qq976I6MdzQbEmvJcEFm3FtOQvTrNuhzYzUFsDKqM=\n\n—  4gartha.test/anchor/1 T9o9soIwFBkHCYgdVvussgzy4HHDNNRiVBU3P8NMG4np08hCLEEg+nDgcyc7Dp/U13AXfWs4azCwgTRDNdNC0g3IgQE=\n",
+   "origin": "4gartha.test/anchor/1",
+   "public_key": "19be235bc9531b7727c7925b7e254197bcb9a0dde2faf3663e51f52ded91a192",
+   "expect": "malformed",
+   "reason": "is not",
+   "sigsum_go": "reject",
+   "x_mod_note": "reject"
+  },
+  {
+   "name": "seventeen-signature-lines",
+   "note": "4gartha.test/anchor/1\n7\n/1Qq976I6MdzQbEmvJcEFm3FtOQvTrNuhzYzUFsDKqM=\n\n— 4gartha.test/anchor/1 T9o9soIwFBkHCYgdVvussgzy4HHDNNRiVBU3P8NMG4np08hCLEEg+nDgcyc7Dp/U13AXfWs4azCwgTRDNdNC0g3IgQE=\n— unknown0.example/key i11cmXn/lYYlTHpR2F/4AX0VYCMjPO9LJ4BIhvS8MC7WBqQNFb6VwT4VoVv9+E6jA2DpcgetJ1gv0tj6l8G/RpfQ5ww=\n— unknown1.example/key +WkTS3n/lYYlTHpR2F/4AX0VYCMjPO9LJ4BIhvS8MC7WBqQNFb6VwT4VoVv9+E6jA2DpcgetJ1gv0tj6l8G/RpfQ5ww=\n— unknown2.example/key CMdhKHn/lYYlTHpR2F/4AX0VYCMjPO9LJ4BIhvS8MC7WBqQNFb6VwT4VoVv9+E6jA2DpcgetJ1gv0tj6l8G/RpfQ5ww=\n— unknown3.example/key qHdiFnn/lYYlTHpR2F/4AX0VYCMjPO9LJ4BIhvS8MC7WBqQNFb6VwT4VoVv9+E6jA2DpcgetJ1gv0tj6l8G/RpfQ5ww=\n— unknown4.example/key u/lgUHn/lYYlTHpR2F/4AX0VYCMjPO9LJ4BIhvS8MC7WBqQNFb6VwT4VoVv9+E6jA2DpcgetJ1gv0tj6l8G/RpfQ5ww=\n— unknown5.example/key BuEI6nn/lYYlTHpR2F/4AX0VYCMjPO9LJ4BIhvS8MC7WBqQNFb6VwT4VoVv9+E6jA2DpcgetJ1gv0tj6l8G/RpfQ5ww=\n— unknown6.example/key MI3ITXn/lYYlTHpR2F/4AX0VYCMjPO9LJ4BIhvS8MC7WBqQNFb6VwT4VoVv9+E6jA2DpcgetJ1gv0tj6l8G/RpfQ5ww=\n— unknown7.example/key LGKcSnn/lYYlTHpR2F/4AX0VYCMjPO9LJ4BIhvS8MC7WBqQNFb6VwT4VoVv9+E6jA2DpcgetJ1gv0tj6l8G/RpfQ5ww=\n— unknown8.example/key PSgvoHn/lYYlTHpR2F/4AX0VYCMjPO9LJ4BIhvS8MC7WBqQNFb6VwT4VoVv9+E6jA2DpcgetJ1gv0tj6l8G/RpfQ5ww=\n— unknown9.example/key U98IZXn/lYYlTHpR2F/4AX0VYCMjPO9LJ4BIhvS8MC7WBqQNFb6VwT4VoVv9+E6jA2DpcgetJ1gv0tj6l8G/RpfQ5ww=\n— unknown10.example/key mPUtR3n/lYYlTHpR2F/4AX0VYCMjPO9LJ4BIhvS8MC7WBqQNFb6VwT4VoVv9+E6jA2DpcgetJ1gv0tj6l8G/RpfQ5ww=\n— unknown11.example/key vN/uLnn/lYYlTHpR2F/4AX0VYCMjPO9LJ4BIhvS8MC7WBqQNFb6VwT4VoVv9+E6jA2DpcgetJ1gv0tj6l8G/RpfQ5ww=\n— unknown12.example/key mpFov3n/lYYlTHpR2F/4AX0VYCMjPO9LJ4BIhvS8MC7WBqQNFb6VwT4VoVv9+E6jA2DpcgetJ1gv0tj6l8G/RpfQ5ww=\n— unknown13.example/key 20c0aXn/lYYlTHpR2F/4AX0VYCMjPO9LJ4BIhvS8MC7WBqQNFb6VwT4VoVv9+E6jA2DpcgetJ1gv0tj6l8G/RpfQ5ww=\n— unknown14.example/key Zbojf3n/lYYlTHpR2F/4AX0VYCMjPO9LJ4BIhvS8MC7WBqQNFb6VwT4VoVv9+E6jA2DpcgetJ1gv0tj6l8G/RpfQ5ww=\n— unknown15.example/key wyYYxnn/lYYlTHpR2F/4AX0VYCMjPO9LJ4BIhvS8MC7WBqQNFb6VwT4VoVv9+E6jA2DpcgetJ1gv0tj6l8G/RpfQ5ww=\n",
+   "origin": "4gartha.test/anchor/1",
+   "public_key": "19be235bc9531b7727c7925b7e254197bcb9a0dde2faf3663e51f52ded91a192",
+   "expect": "malformed",
+   "reason": "the limit is 16",
+   "sigsum_go": "reject",
+   "x_mod_note": "accept"
+  },
+  {
+   "name": "tab-in-origin",
+   "note": "4gartha.test/anchor\t1\n7\n/1Qq976I6MdzQbEmvJcEFm3FtOQvTrNuhzYzUFsDKqM=\n\n— 4gartha.test/anchor\t1 62mVMBu1ZoZeHk55yCiiYEUJ/4KuVpT/kGn/onbOocBhNRk83O2Ph2DBxpZgM+Y4/AwVjtlwyl5W68Ph0D3+ifGgnQM=\n",
+   "origin": "4gartha.test/anchor/1",
+   "public_key": "19be235bc9531b7727c7925b7e254197bcb9a0dde2faf3663e51f52ded91a192",
+   "expect": "malformed",
+   "reason": "control character",
+   "sigsum_go": "reject",
+   "x_mod_note": "reject"
+  }
+ ],
+ "policies": [
+  {
+   "name": "valid",
+   "text": "# 4gartha.anchor-policy/1 TEST POLICY: every key here is public test data\nanchor-origin 4gartha.test/anchor/1\nanchor-key 19be235bc9531b7727c7925b7e254197bcb9a0dde2faf3663e51f52ded91a192\nlog 3ee73ce2f3beb6d902d574911947b6b3c92ec843736452a8ce74712011a658b9\nwitness w1 5a37d79e6e6444e731eb08de4e063cdce75317dc004641a3b0fe100bd05c5179\nwitness w2 bdfbd9cd6b5011af98df9f50af75a4ccad14c1efced693503fe4b56766c0bb39\nwitness w3 e28443bb5022db638c93302a2e1b289a0dbd9905c0da755c943a6c747f5bdd64\ngroup quorum-rule 2 w1 w2 w3\nquorum quorum-rule\n",
+   "expect": "accept",
+   "reason": null,
+   "sigsum_go": "accept"
+  },
+  {
+   "name": "valid-tabs-comments-uppercase",
+   "text": "  # comment\n# 4gartha.anchor-policy/1 TEST POLICY: every key here is public test data\nanchor-origin 4gartha.test/anchor/1\nanchor-key 19be235bc9531b7727c7925b7e254197bcb9a0dde2faf3663e51f52ded91a192\nlog\t3EE73CE2F3BEB6D902D574911947B6B3C92EC843736452A8CE74712011A658B9\thttps://log.example\nwitness w1 5a37d79e6e6444e731eb08de4e063cdce75317dc004641a3b0fe100bd05c5179\nwitness w2 bdfbd9cd6b5011af98df9f50af75a4ccad14c1efced693503fe4b56766c0bb39\nwitness w3 e28443bb5022db638c93302a2e1b289a0dbd9905c0da755c943a6c747f5bdd64\ngroup quorum-rule 2 w1 w2 w3\nquorum quorum-rule\n",
+   "expect": "accept",
+   "reason": null,
+   "sigsum_go": "accept"
+  },
+  {
+   "name": "quorum-none",
+   "text": "# 4gartha.anchor-policy/1 TEST POLICY: every key here is public test data\nanchor-origin 4gartha.test/anchor/1\nanchor-key 19be235bc9531b7727c7925b7e254197bcb9a0dde2faf3663e51f52ded91a192\nlog 3ee73ce2f3beb6d902d574911947b6b3c92ec843736452a8ce74712011a658b9\nwitness w1 5a37d79e6e6444e731eb08de4e063cdce75317dc004641a3b0fe100bd05c5179\nwitness w2 bdfbd9cd6b5011af98df9f50af75a4ccad14c1efced693503fe4b56766c0bb39\nwitness w3 e28443bb5022db638c93302a2e1b289a0dbd9905c0da755c943a6c747f5bdd64\ngroup quorum-rule 2 w1 w2 w3\nquorum none\n",
+   "expect": "reject",
+   "reason": "quorum none",
+   "sigsum_go": "accept"
+  },
+  {
+   "name": "missing-anchor-key",
+   "text": "# 4gartha.anchor-policy/1 TEST POLICY: every key here is public test data\nanchor-origin 4gartha.test/anchor/1\nlog 3ee73ce2f3beb6d902d574911947b6b3c92ec843736452a8ce74712011a658b9\nwitness w1 5a37d79e6e6444e731eb08de4e063cdce75317dc004641a3b0fe100bd05c5179\nwitness w2 bdfbd9cd6b5011af98df9f50af75a4ccad14c1efced693503fe4b56766c0bb39\nwitness w3 e28443bb5022db638c93302a2e1b289a0dbd9905c0da755c943a6c747f5bdd64\ngroup quorum-rule 2 w1 w2 w3\nquorum quorum-rule\n",
+   "expect": "reject",
+   "reason": "no 'anchor-key' line",
+   "sigsum_go": "accept"
+  },
+  {
+   "name": "missing-anchor-origin",
+   "text": "# 4gartha.anchor-policy/1 TEST POLICY: every key here is public test data\nanchor-key 19be235bc9531b7727c7925b7e254197bcb9a0dde2faf3663e51f52ded91a192\nlog 3ee73ce2f3beb6d902d574911947b6b3c92ec843736452a8ce74712011a658b9\nwitness w1 5a37d79e6e6444e731eb08de4e063cdce75317dc004641a3b0fe100bd05c5179\nwitness w2 bdfbd9cd6b5011af98df9f50af75a4ccad14c1efced693503fe4b56766c0bb39\nwitness w3 e28443bb5022db638c93302a2e1b289a0dbd9905c0da755c943a6c747f5bdd64\ngroup quorum-rule 2 w1 w2 w3\nquorum quorum-rule\n",
+   "expect": "reject",
+   "reason": "no 'anchor-origin' line",
+   "sigsum_go": "accept"
+  },
+  {
+   "name": "two-anchor-keys",
+   "text": "# 4gartha.anchor-policy/1 TEST POLICY: every key here is public test data\nanchor-origin 4gartha.test/anchor/1\nanchor-key 19be235bc9531b7727c7925b7e254197bcb9a0dde2faf3663e51f52ded91a192\nanchor-key ba92d7d51afa369b1614b8e3c241a78616124ea77f013c54ce149d93c76151db\nlog 3ee73ce2f3beb6d902d574911947b6b3c92ec843736452a8ce74712011a658b9\nwitness w1 5a37d79e6e6444e731eb08de4e063cdce75317dc004641a3b0fe100bd05c5179\nwitness w2 bdfbd9cd6b5011af98df9f50af75a4ccad14c1efced693503fe4b56766c0bb39\nwitness w3 e28443bb5022db638c93302a2e1b289a0dbd9905c0da755c943a6c747f5bdd64\ngroup quorum-rule 2 w1 w2 w3\nquorum quorum-rule\n",
+   "expect": "reject",
+   "reason": "exactly one 'anchor-key",
+   "sigsum_go": "accept"
+  },
+  {
+   "name": "origin-with-plus",
+   "text": "# 4gartha.anchor-policy/1 TEST POLICY: every key here is public test data\nanchor-origin 4gartha.test/anchor+1\nanchor-key 19be235bc9531b7727c7925b7e254197bcb9a0dde2faf3663e51f52ded91a192\nlog 3ee73ce2f3beb6d902d574911947b6b3c92ec843736452a8ce74712011a658b9\nwitness w1 5a37d79e6e6444e731eb08de4e063cdce75317dc004641a3b0fe100bd05c5179\nwitness w2 bdfbd9cd6b5011af98df9f50af75a4ccad14c1efced693503fe4b56766c0bb39\nwitness w3 e28443bb5022db638c93302a2e1b289a0dbd9905c0da755c943a6c747f5bdd64\ngroup quorum-rule 2 w1 w2 w3\nquorum quorum-rule\n",
+   "expect": "reject",
+   "reason": "contains '+'",
+   "sigsum_go": "accept"
+  },
+  {
+   "name": "no-log",
+   "text": "# 4gartha.anchor-policy/1 TEST POLICY: every key here is public test data\nanchor-origin 4gartha.test/anchor/1\nanchor-key 19be235bc9531b7727c7925b7e254197bcb9a0dde2faf3663e51f52ded91a192\nwitness w1 5a37d79e6e6444e731eb08de4e063cdce75317dc004641a3b0fe100bd05c5179\nwitness w2 bdfbd9cd6b5011af98df9f50af75a4ccad14c1efced693503fe4b56766c0bb39\nwitness w3 e28443bb5022db638c93302a2e1b289a0dbd9905c0da755c943a6c747f5bdd64\ngroup quorum-rule 2 w1 w2 w3\nquorum quorum-rule\n",
+   "expect": "reject",
+   "reason": "at least one Sigsum log",
+   "sigsum_go": "accept"
+  },
+  {
+   "name": "small-order-witness-key",
+   "text": "# 4gartha.anchor-policy/1 TEST POLICY: every key here is public test data\nanchor-origin 4gartha.test/anchor/1\nanchor-key 19be235bc9531b7727c7925b7e254197bcb9a0dde2faf3663e51f52ded91a192\nlog 3ee73ce2f3beb6d902d574911947b6b3c92ec843736452a8ce74712011a658b9\nwitness w1 5a37d79e6e6444e731eb08de4e063cdce75317dc004641a3b0fe100bd05c5179\nwitness w2 bdfbd9cd6b5011af98df9f50af75a4ccad14c1efced693503fe4b56766c0bb39\nwitness w3 0000000000000000000000000000000000000000000000000000000000000000\ngroup quorum-rule 2 w1 w2 w3\nquorum quorum-rule\n",
+   "expect": "reject",
+   "reason": "small-order point",
+   "sigsum_go": "accept"
+  },
+  {
+   "name": "unknown-keyword",
+   "text": "# 4gartha.anchor-policy/1 TEST POLICY: every key here is public test data\nanchor-origin 4gartha.test/anchor/1\nanchor-key 19be235bc9531b7727c7925b7e254197bcb9a0dde2faf3663e51f52ded91a192\nlog 3ee73ce2f3beb6d902d574911947b6b3c92ec843736452a8ce74712011a658b9\nwitness w1 5a37d79e6e6444e731eb08de4e063cdce75317dc004641a3b0fe100bd05c5179\nwitness w2 bdfbd9cd6b5011af98df9f50af75a4ccad14c1efced693503fe4b56766c0bb39\nwitness w3 e28443bb5022db638c93302a2e1b289a0dbd9905c0da755c943a6c747f5bdd64\ngroup quorum-rule 2 w1 w2 w3\nquorum quorum-rule\nmonitor https://monitor.example\n",
+   "expect": "reject",
+   "reason": "unknown keyword",
+   "sigsum_go": "reject"
+  },
+  {
+   "name": "crlf",
+   "text": "# 4gartha.anchor-policy/1 TEST POLICY: every key here is public test data\r\nanchor-origin 4gartha.test/anchor/1\r\nanchor-key 19be235bc9531b7727c7925b7e254197bcb9a0dde2faf3663e51f52ded91a192\r\nlog 3ee73ce2f3beb6d902d574911947b6b3c92ec843736452a8ce74712011a658b9\r\nwitness w1 5a37d79e6e6444e731eb08de4e063cdce75317dc004641a3b0fe100bd05c5179\r\nwitness w2 bdfbd9cd6b5011af98df9f50af75a4ccad14c1efced693503fe4b56766c0bb39\r\nwitness w3 e28443bb5022db638c93302a2e1b289a0dbd9905c0da755c943a6c747f5bdd64\r\ngroup quorum-rule 2 w1 w2 w3\r\nquorum quorum-rule\r\n",
+   "expect": "reject",
+   "reason": "control character",
+   "sigsum_go": "accept"
+  },
+  {
+   "name": "undefined-member",
+   "text": "# 4gartha.anchor-policy/1 TEST POLICY: every key here is public test data\nanchor-origin 4gartha.test/anchor/1\nanchor-key 19be235bc9531b7727c7925b7e254197bcb9a0dde2faf3663e51f52ded91a192\nlog 3ee73ce2f3beb6d902d574911947b6b3c92ec843736452a8ce74712011a658b9\nwitness w1 5a37d79e6e6444e731eb08de4e063cdce75317dc004641a3b0fe100bd05c5179\nwitness w2 bdfbd9cd6b5011af98df9f50af75a4ccad14c1efced693503fe4b56766c0bb39\nwitness w3 e28443bb5022db638c93302a2e1b289a0dbd9905c0da755c943a6c747f5bdd64\ngroup quorum-rule 2 w1 w2 w9\nquorum quorum-rule\n",
+   "expect": "reject",
+   "reason": "undefined name",
+   "sigsum_go": "reject"
+  },
+  {
+   "name": "forward-reference",
+   "text": "# 4gartha.anchor-policy/1 TEST POLICY: every key here is public test data\nanchor-origin 4gartha.test/anchor/1\nanchor-key 19be235bc9531b7727c7925b7e254197bcb9a0dde2faf3663e51f52ded91a192\nlog 3ee73ce2f3beb6d902d574911947b6b3c92ec843736452a8ce74712011a658b9\ngroup quorum-rule 2 w1 w2 w3\nwitness w1 5a37d79e6e6444e731eb08de4e063cdce75317dc004641a3b0fe100bd05c5179\nwitness w2 bdfbd9cd6b5011af98df9f50af75a4ccad14c1efced693503fe4b56766c0bb39\nwitness w3 e28443bb5022db638c93302a2e1b289a0dbd9905c0da755c943a6c747f5bdd64\nquorum quorum-rule\n",
+   "expect": "reject",
+   "reason": "undefined name",
+   "sigsum_go": "reject"
+  },
+  {
+   "name": "member-twice",
+   "text": "# 4gartha.anchor-policy/1 TEST POLICY: every key here is public test data\nanchor-origin 4gartha.test/anchor/1\nanchor-key 19be235bc9531b7727c7925b7e254197bcb9a0dde2faf3663e51f52ded91a192\nlog 3ee73ce2f3beb6d902d574911947b6b3c92ec843736452a8ce74712011a658b9\nwitness w1 5a37d79e6e6444e731eb08de4e063cdce75317dc004641a3b0fe100bd05c5179\nwitness w2 bdfbd9cd6b5011af98df9f50af75a4ccad14c1efced693503fe4b56766c0bb39\nwitness w3 e28443bb5022db638c93302a2e1b289a0dbd9905c0da755c943a6c747f5bdd64\ngroup quorum-rule 2 w1 w2 w2\nquorum quorum-rule\n",
+   "expect": "reject",
+   "reason": "already a member",
+   "sigsum_go": "reject"
+  },
+  {
+   "name": "none-as-member",
+   "text": "# 4gartha.anchor-policy/1 TEST POLICY: every key here is public test data\nanchor-origin 4gartha.test/anchor/1\nanchor-key 19be235bc9531b7727c7925b7e254197bcb9a0dde2faf3663e51f52ded91a192\nlog 3ee73ce2f3beb6d902d574911947b6b3c92ec843736452a8ce74712011a658b9\nwitness w1 5a37d79e6e6444e731eb08de4e063cdce75317dc004641a3b0fe100bd05c5179\nwitness w2 bdfbd9cd6b5011af98df9f50af75a4ccad14c1efced693503fe4b56766c0bb39\nwitness w3 e28443bb5022db638c93302a2e1b289a0dbd9905c0da755c943a6c747f5bdd64\ngroup quorum-rule 2 w1 w2 none\nquorum quorum-rule\n",
+   "expect": "reject",
+   "reason": "cannot be a member",
+   "sigsum_go": "reject"
+  },
+  {
+   "name": "threshold-zero",
+   "text": "# 4gartha.anchor-policy/1 TEST POLICY: every key here is public test data\nanchor-origin 4gartha.test/anchor/1\nanchor-key 19be235bc9531b7727c7925b7e254197bcb9a0dde2faf3663e51f52ded91a192\nlog 3ee73ce2f3beb6d902d574911947b6b3c92ec843736452a8ce74712011a658b9\nwitness w1 5a37d79e6e6444e731eb08de4e063cdce75317dc004641a3b0fe100bd05c5179\nwitness w2 bdfbd9cd6b5011af98df9f50af75a4ccad14c1efced693503fe4b56766c0bb39\nwitness w3 e28443bb5022db638c93302a2e1b289a0dbd9905c0da755c943a6c747f5bdd64\ngroup quorum-rule 0 w1 w2 w3\nquorum quorum-rule\n",
+   "expect": "reject",
+   "reason": "out of range",
+   "sigsum_go": "reject"
+  },
+  {
+   "name": "threshold-too-large",
+   "text": "# 4gartha.anchor-policy/1 TEST POLICY: every key here is public test data\nanchor-origin 4gartha.test/anchor/1\nanchor-key 19be235bc9531b7727c7925b7e254197bcb9a0dde2faf3663e51f52ded91a192\nlog 3ee73ce2f3beb6d902d574911947b6b3c92ec843736452a8ce74712011a658b9\nwitness w1 5a37d79e6e6444e731eb08de4e063cdce75317dc004641a3b0fe100bd05c5179\nwitness w2 bdfbd9cd6b5011af98df9f50af75a4ccad14c1efced693503fe4b56766c0bb39\nwitness w3 e28443bb5022db638c93302a2e1b289a0dbd9905c0da755c943a6c747f5bdd64\ngroup quorum-rule 4 w1 w2 w3\nquorum quorum-rule\n",
+   "expect": "reject",
+   "reason": "out of range",
+   "sigsum_go": "reject"
+  },
+  {
+   "name": "duplicate-witness-key",
+   "text": "# 4gartha.anchor-policy/1 TEST POLICY: every key here is public test data\nanchor-origin 4gartha.test/anchor/1\nanchor-key 19be235bc9531b7727c7925b7e254197bcb9a0dde2faf3663e51f52ded91a192\nlog 3ee73ce2f3beb6d902d574911947b6b3c92ec843736452a8ce74712011a658b9\nwitness w1 5a37d79e6e6444e731eb08de4e063cdce75317dc004641a3b0fe100bd05c5179\nwitness w2 bdfbd9cd6b5011af98df9f50af75a4ccad14c1efced693503fe4b56766c0bb39\nwitness w3 bdfbd9cd6b5011af98df9f50af75a4ccad14c1efced693503fe4b56766c0bb39\ngroup quorum-rule 2 w1 w2 w3\nquorum quorum-rule\n",
+   "expect": "reject",
+   "reason": "duplicate witness key",
+   "sigsum_go": "reject"
+  },
+  {
+   "name": "duplicate-log",
+   "text": "# 4gartha.anchor-policy/1 TEST POLICY: every key here is public test data\nanchor-origin 4gartha.test/anchor/1\nanchor-key 19be235bc9531b7727c7925b7e254197bcb9a0dde2faf3663e51f52ded91a192\nlog 3ee73ce2f3beb6d902d574911947b6b3c92ec843736452a8ce74712011a658b9\nlog 3ee73ce2f3beb6d902d574911947b6b3c92ec843736452a8ce74712011a658b9\nwitness w1 5a37d79e6e6444e731eb08de4e063cdce75317dc004641a3b0fe100bd05c5179\nwitness w2 bdfbd9cd6b5011af98df9f50af75a4ccad14c1efced693503fe4b56766c0bb39\nwitness w3 e28443bb5022db638c93302a2e1b289a0dbd9905c0da755c943a6c747f5bdd64\ngroup quorum-rule 2 w1 w2 w3\nquorum quorum-rule\n",
+   "expect": "reject",
+   "reason": "duplicate log",
+   "sigsum_go": "reject"
+  },
+  {
+   "name": "duplicate-name",
+   "text": "# 4gartha.anchor-policy/1 TEST POLICY: every key here is public test data\nanchor-origin 4gartha.test/anchor/1\nanchor-key 19be235bc9531b7727c7925b7e254197bcb9a0dde2faf3663e51f52ded91a192\nlog 3ee73ce2f3beb6d902d574911947b6b3c92ec843736452a8ce74712011a658b9\nwitness w1 5a37d79e6e6444e731eb08de4e063cdce75317dc004641a3b0fe100bd05c5179\nwitness w2 bdfbd9cd6b5011af98df9f50af75a4ccad14c1efced693503fe4b56766c0bb39\nwitness w2 e28443bb5022db638c93302a2e1b289a0dbd9905c0da755c943a6c747f5bdd64\ngroup quorum-rule 2 w1 w2 w3\nquorum quorum-rule\n",
+   "expect": "reject",
+   "reason": "duplicate name",
+   "sigsum_go": "reject"
+  },
+  {
+   "name": "trailing-comment",
+   "text": "# 4gartha.anchor-policy/1 TEST POLICY: every key here is public test data\nanchor-origin 4gartha.test/anchor/1\nanchor-key 19be235bc9531b7727c7925b7e254197bcb9a0dde2faf3663e51f52ded91a192\nlog 3ee73ce2f3beb6d902d574911947b6b3c92ec843736452a8ce74712011a658b9 # production log\nwitness w1 5a37d79e6e6444e731eb08de4e063cdce75317dc004641a3b0fe100bd05c5179\nwitness w2 bdfbd9cd6b5011af98df9f50af75a4ccad14c1efced693503fe4b56766c0bb39\nwitness w3 e28443bb5022db638c93302a2e1b289a0dbd9905c0da755c943a6c747f5bdd64\ngroup quorum-rule 2 w1 w2 w3\nquorum quorum-rule\n",
+   "expect": "reject",
+   "reason": "'log <hex public key> [url]'",
+   "sigsum_go": "reject"
+  },
+  {
+   "name": "two-quorums",
+   "text": "# 4gartha.anchor-policy/1 TEST POLICY: every key here is public test data\nanchor-origin 4gartha.test/anchor/1\nanchor-key 19be235bc9531b7727c7925b7e254197bcb9a0dde2faf3663e51f52ded91a192\nlog 3ee73ce2f3beb6d902d574911947b6b3c92ec843736452a8ce74712011a658b9\nwitness w1 5a37d79e6e6444e731eb08de4e063cdce75317dc004641a3b0fe100bd05c5179\nwitness w2 bdfbd9cd6b5011af98df9f50af75a4ccad14c1efced693503fe4b56766c0bb39\nwitness w3 e28443bb5022db638c93302a2e1b289a0dbd9905c0da755c943a6c747f5bdd64\ngroup quorum-rule 2 w1 w2 w3\nquorum quorum-rule\nquorum w1\n",
+   "expect": "reject",
+   "reason": "exactly one 'quorum",
+   "sigsum_go": "reject"
+  },
+  {
+   "name": "short-key",
+   "text": "# 4gartha.anchor-policy/1 TEST POLICY: every key here is public test data\nanchor-origin 4gartha.test/anchor/1\nanchor-key 19be235bc9531b7727c7925b7e254197bcb9a0dde2faf3663e51f52ded91a192\nlog 3ee73ce2f3beb6d902d574911947b6b3c92ec843736452a8ce74712011a658b\nwitness w1 5a37d79e6e6444e731eb08de4e063cdce75317dc004641a3b0fe100bd05c5179\nwitness w2 bdfbd9cd6b5011af98df9f50af75a4ccad14c1efced693503fe4b56766c0bb39\nwitness w3 e28443bb5022db638c93302a2e1b289a0dbd9905c0da755c943a6c747f5bdd64\ngroup quorum-rule 2 w1 w2 w3\nquorum quorum-rule\n",
+   "expect": "reject",
+   "reason": "64 hex characters",
+   "sigsum_go": "reject"
+  }
+ ],
+ "sigsum_proofs": [
+  {
+   "name": "valid",
+   "checkpoint_text": "4gartha.test/anchor/1\n7\n/1Qq976I6MdzQbEmvJcEFm3FtOQvTrNuhzYzUFsDKqM=\n",
+   "anchor_public_key": "19be235bc9531b7727c7925b7e254197bcb9a0dde2faf3663e51f52ded91a192",
+   "policy": "# 4gartha.anchor-policy/1 TEST POLICY: every key here is public test data\nanchor-origin 4gartha.test/anchor/1\nanchor-key 19be235bc9531b7727c7925b7e254197bcb9a0dde2faf3663e51f52ded91a192\nlog 3ee73ce2f3beb6d902d574911947b6b3c92ec843736452a8ce74712011a658b9\nwitness w1 5a37d79e6e6444e731eb08de4e063cdce75317dc004641a3b0fe100bd05c5179\nwitness w2 bdfbd9cd6b5011af98df9f50af75a4ccad14c1efced693503fe4b56766c0bb39\nwitness w3 e28443bb5022db638c93302a2e1b289a0dbd9905c0da755c943a6c747f5bdd64\ngroup quorum-rule 2 w1 w2 w3\nquorum quorum-rule\n",
+   "proof": "version=2\nlog=ed71c271c7208e35fa0400c1a9beefd6800e51beabb626bf0dbef0b263dbe607\nleaf=212803634ce4a3bfd438461c3d205b1c3afff03ae9719f83e71b1dd77831fbbd 18f834c41a72e0c19ecd1198cdedc7091a721646a931be92f2864e081858b3a30ecab655901b2da6769f22170e11848a94603d08750f1de1f37605b8e2a5bd0d\n\nsize=9\nroot_hash=6f6e084c30c4f006cd2d160b42ddf2da56a918a2ed8ef2eb3fbbfb941de4bd3b\nsignature=6cfcc9af7a3cf288d48924f6346c2b1f04c38a5e312cdd76b84d4336cd8ecf63cdb6643fe93fa849861549ae3fb70ba8a14f1a4b5c600345326198ea95594702\ncosignature=3561cde0dfdea4ab7abde61f5b7743f23790560d8a31b929fd41f3f51ca78b7d 1767225900 81aec48787753110963ced5199b192f528e59686103aa85831fe6123d28a56f9524759b1ce3d44bbc3cf35bbf980b04fa5abbc147dadbd2e397cc6ececa17407\ncosignature=eb4f10ca61922df2ac8a3c94a40b88650b5ebd39117c0da27541e9dc25e5e31e 1767225700 db91d70224a3d270cd397d271add4facc8787494cd779e5f309d0f4e70cf780353d77061e7ad254d326c2234b6369b0090a29e6d0cdc0618eba8b3a8bc07d30c\ncosignature=c746ca6d2e2e6e5c6e8365327390e8fe2d4aa717bd45cfee25347995689ec78e 1767225800 359577c6598a65866e51233e02790487005547fb320a118ef1a3180007af59ec10614dfae082f313a6e3e63cab8932187617c3c33ef7e4efb2148a83130cce04\n\nleaf_index=5\nnode_hash=a9305d980f362d449d9197da39861166c234e5aec4d547244c8f0cd3ab53fa75\nnode_hash=7d761e19fe919d9e29a7174c2081f785ef8f5cf4e6442c028e907fd2195e302d\nnode_hash=41521768cf9b8d920a6a78b719d4f5f2f1a9829bc90bd4722e7815c67cc716ed\nnode_hash=9820138ee5dafeafb594feb182f062e14069e1304267a56e1e4c2f4a0c528425\n",
+   "expect": "PASS",
+   "anchored_no_later_than": 1767225800,
+   "reason": null,
+   "sigsum_verify": "accept"
+  },
+  {
+   "name": "valid-tree-size-1",
+   "checkpoint_text": "4gartha.test/anchor/1\n7\n/1Qq976I6MdzQbEmvJcEFm3FtOQvTrNuhzYzUFsDKqM=\n",
+   "anchor_public_key": "19be235bc9531b7727c7925b7e254197bcb9a0dde2faf3663e51f52ded91a192",
+   "policy": "# 4gartha.anchor-policy/1 TEST POLICY: every key here is public test data\nanchor-origin 4gartha.test/anchor/1\nanchor-key 19be235bc9531b7727c7925b7e254197bcb9a0dde2faf3663e51f52ded91a192\nlog 3ee73ce2f3beb6d902d574911947b6b3c92ec843736452a8ce74712011a658b9\nwitness w1 5a37d79e6e6444e731eb08de4e063cdce75317dc004641a3b0fe100bd05c5179\nwitness w2 bdfbd9cd6b5011af98df9f50af75a4ccad14c1efced693503fe4b56766c0bb39\nwitness w3 e28443bb5022db638c93302a2e1b289a0dbd9905c0da755c943a6c747f5bdd64\ngroup quorum-rule 2 w1 w2 w3\nquorum quorum-rule\n",
+   "proof": "version=2\nlog=ed71c271c7208e35fa0400c1a9beefd6800e51beabb626bf0dbef0b263dbe607\nleaf=212803634ce4a3bfd438461c3d205b1c3afff03ae9719f83e71b1dd77831fbbd 18f834c41a72e0c19ecd1198cdedc7091a721646a931be92f2864e081858b3a30ecab655901b2da6769f22170e11848a94603d08750f1de1f37605b8e2a5bd0d\n\nsize=1\nroot_hash=1f1a4c05c8de76de408e18c0be940dd0e5be7b5025ff886266fa6708d66dbb19\nsignature=a9bdc8bd5fbf611c9a3503b06a01eee8d17a99a0ede1538f9840be47a70b95927ad8bdc2fac24aa811deb9153cace72cdaa9e5420131e42413211dd5b379430d\ncosignature=3561cde0dfdea4ab7abde61f5b7743f23790560d8a31b929fd41f3f51ca78b7d 1767225610 776d9ea7e73c272e62705091c5784bec0c8a6539119ffe150230123c09748c1efa05faa098b566d3c9eb577badc272c31beaebb71e0f439c1745fac17eb36c05\ncosignature=eb4f10ca61922df2ac8a3c94a40b88650b5ebd39117c0da27541e9dc25e5e31e 1767225620 0acaef7b59d975f8b7e2308cda461f8bfbf0ed5bf850eed8bc563270473e639e7c37311155f61dac6d6580a73705f112377c39d261eaf66b438e06ede0fdbe0e\n",
+   "expect": "PASS",
+   "anchored_no_later_than": 1767225620,
+   "reason": null,
+   "sigsum_verify": "accept"
+  },
+  {
+   "name": "valid-nested-groups",
+   "checkpoint_text": "4gartha.test/anchor/1\n7\n/1Qq976I6MdzQbEmvJcEFm3FtOQvTrNuhzYzUFsDKqM=\n",
+   "anchor_public_key": "19be235bc9531b7727c7925b7e254197bcb9a0dde2faf3663e51f52ded91a192",
+   "policy": "# 4gartha.anchor-policy/1 TEST POLICY: every key here is public test data\nanchor-origin 4gartha.test/anchor/1\nanchor-key 19be235bc9531b7727c7925b7e254197bcb9a0dde2faf3663e51f52ded91a192\nlog 3ee73ce2f3beb6d902d574911947b6b3c92ec843736452a8ce74712011a658b9\nwitness w1 5a37d79e6e6444e731eb08de4e063cdce75317dc004641a3b0fe100bd05c5179\nwitness w2 bdfbd9cd6b5011af98df9f50af75a4ccad14c1efced693503fe4b56766c0bb39\nwitness w3 e28443bb5022db638c93302a2e1b289a0dbd9905c0da755c943a6c747f5bdd64\nwitness w4 8e866b3168219063140480dce6a42249a4fbd9a38ad824dc3f650eed2a59ff50\nwitness w5 d3d27cad89529bee06b9921c2f1cf844aaa3cf6defcef87cf24ad81a4fb4f04a\ngroup org-a 2 w1 w2 w3\ngroup org-b any w4 w5\ngroup both all org-a org-b\nquorum both\n",
+   "proof": "version=2\nlog=ed71c271c7208e35fa0400c1a9beefd6800e51beabb626bf0dbef0b263dbe607\nleaf=212803634ce4a3bfd438461c3d205b1c3afff03ae9719f83e71b1dd77831fbbd 18f834c41a72e0c19ecd1198cdedc7091a721646a931be92f2864e081858b3a30ecab655901b2da6769f22170e11848a94603d08750f1de1f37605b8e2a5bd0d\n\nsize=9\nroot_hash=6f6e084c30c4f006cd2d160b42ddf2da56a918a2ed8ef2eb3fbbfb941de4bd3b\nsignature=6cfcc9af7a3cf288d48924f6346c2b1f04c38a5e312cdd76b84d4336cd8ecf63cdb6643fe93fa849861549ae3fb70ba8a14f1a4b5c600345326198ea95594702\ncosignature=3561cde0dfdea4ab7abde61f5b7743f23790560d8a31b929fd41f3f51ca78b7d 1767225610 53e6b24e519fa87760c857ec281d0f503c1fa14aaa3fe18ed56417e2068d49d45a1623e66f91549f2253fd5380ca2efdc204d3004e935e12eeffe85357ba5a05\ncosignature=eb4f10ca61922df2ac8a3c94a40b88650b5ebd39117c0da27541e9dc25e5e31e 1767225630 3adc2e1a908d4232e8b7f6a408add8e290639704c6fada67af889f4e51d731ebd67bb48e757e580984a201e32c358323517dd919c128b023ec5e802211f46d05\ncosignature=923b7bc5ae2ef62807a80e766dab113ad70080f37581445df18173dd5671f062 1767225620 f52d784363ddb16857331c63343427172d3293957b2861c6f7dfde99ce4db6476b10287221b01c04c7111670d3b63a22ddf3e2be5cbfbc638f247ac3e661e601\ncosignature=2729be1955122e089ff42cc3f513e884d0e5344d5c5642a86ff8c12784e623a4 1767225605 86877475759fb62485f41cbfead376598bf3b0ab05ea7db4ccfd67633036cc413dee6834dcdb06b749b70bb629558dbf3f5214ab14776b21a49658fb1b33e60c\n\nleaf_index=5\nnode_hash=a9305d980f362d449d9197da39861166c234e5aec4d547244c8f0cd3ab53fa75\nnode_hash=7d761e19fe919d9e29a7174c2081f785ef8f5cf4e6442c028e907fd2195e302d\nnode_hash=41521768cf9b8d920a6a78b719d4f5f2f1a9829bc90bd4722e7815c67cc716ed\nnode_hash=9820138ee5dafeafb594feb182f062e14069e1304267a56e1e4c2f4a0c528425\n",
+   "expect": "PASS",
+   "anchored_no_later_than": 1767225630,
+   "reason": null,
+   "sigsum_verify": "accept"
+  },
+  {
+   "name": "valid-plus-unknown-witness",
+   "checkpoint_text": "4gartha.test/anchor/1\n7\n/1Qq976I6MdzQbEmvJcEFm3FtOQvTrNuhzYzUFsDKqM=\n",
+   "anchor_public_key": "19be235bc9531b7727c7925b7e254197bcb9a0dde2faf3663e51f52ded91a192",
+   "policy": "# 4gartha.anchor-policy/1 TEST POLICY: every key here is public test data\nanchor-origin 4gartha.test/anchor/1\nanchor-key 19be235bc9531b7727c7925b7e254197bcb9a0dde2faf3663e51f52ded91a192\nlog 3ee73ce2f3beb6d902d574911947b6b3c92ec843736452a8ce74712011a658b9\nwitness w1 5a37d79e6e6444e731eb08de4e063cdce75317dc004641a3b0fe100bd05c5179\nwitness w2 bdfbd9cd6b5011af98df9f50af75a4ccad14c1efced693503fe4b56766c0bb39\nwitness w3 e28443bb5022db638c93302a2e1b289a0dbd9905c0da755c943a6c747f5bdd64\ngroup quorum-rule 2 w1 w2 w3\nquorum quorum-rule\n",
+   "proof": "version=2\nlog=ed71c271c7208e35fa0400c1a9beefd6800e51beabb626bf0dbef0b263dbe607\nleaf=212803634ce4a3bfd438461c3d205b1c3afff03ae9719f83e71b1dd77831fbbd 18f834c41a72e0c19ecd1198cdedc7091a721646a931be92f2864e081858b3a30ecab655901b2da6769f22170e11848a94603d08750f1de1f37605b8e2a5bd0d\n\nsize=9\nroot_hash=6f6e084c30c4f006cd2d160b42ddf2da56a918a2ed8ef2eb3fbbfb941de4bd3b\nsignature=6cfcc9af7a3cf288d48924f6346c2b1f04c38a5e312cdd76b84d4336cd8ecf63cdb6643fe93fa849861549ae3fb70ba8a14f1a4b5c600345326198ea95594702\ncosignature=3561cde0dfdea4ab7abde61f5b7743f23790560d8a31b929fd41f3f51ca78b7d 1767225900 81aec48787753110963ced5199b192f528e59686103aa85831fe6123d28a56f9524759b1ce3d44bbc3cf35bbf980b04fa5abbc147dadbd2e397cc6ececa17407\ncosignature=eb4f10ca61922df2ac8a3c94a40b88650b5ebd39117c0da27541e9dc25e5e31e 1767225700 db91d70224a3d270cd397d271add4facc8787494cd779e5f309d0f4e70cf780353d77061e7ad254d326c2234b6369b0090a29e6d0cdc0618eba8b3a8bc07d30c\ncosignature=c746ca6d2e2e6e5c6e8365327390e8fe2d4aa717bd45cfee25347995689ec78e 1767225800 359577c6598a65866e51233e02790487005547fb320a118ef1a3180007af59ec10614dfae082f313a6e3e63cab8932187617c3c33ef7e4efb2148a83130cce04\ncosignature=57b1d42e2ac546c4dfbaf2e5f873074b9b74d30a0cfbc1edb372dd3ebe9898e1 1767225600 3a7550136dfb5c5cf3fd137efd082ff6314adfdc368b1c893a0fd769ca81d8f7fc941d7c1948fd246d35f2f72f9410a138f7f8e295aa418d9e571b02fa218901\n\nleaf_index=5\nnode_hash=a9305d980f362d449d9197da39861166c234e5aec4d547244c8f0cd3ab53fa75\nnode_hash=7d761e19fe919d9e29a7174c2081f785ef8f5cf4e6442c028e907fd2195e302d\nnode_hash=41521768cf9b8d920a6a78b719d4f5f2f1a9829bc90bd4722e7815c67cc716ed\nnode_hash=9820138ee5dafeafb594feb182f062e14069e1304267a56e1e4c2f4a0c528425\n",
+   "expect": "PASS",
+   "anchored_no_later_than": 1767225800,
+   "reason": null,
+   "sigsum_verify": "accept"
+  },
+  {
+   "name": "valid-uppercase-hex",
+   "checkpoint_text": "4gartha.test/anchor/1\n7\n/1Qq976I6MdzQbEmvJcEFm3FtOQvTrNuhzYzUFsDKqM=\n",
+   "anchor_public_key": "19be235bc9531b7727c7925b7e254197bcb9a0dde2faf3663e51f52ded91a192",
+   "policy": "# 4gartha.anchor-policy/1 TEST POLICY: every key here is public test data\nanchor-origin 4gartha.test/anchor/1\nanchor-key 19be235bc9531b7727c7925b7e254197bcb9a0dde2faf3663e51f52ded91a192\nlog 3ee73ce2f3beb6d902d574911947b6b3c92ec843736452a8ce74712011a658b9\nwitness w1 5a37d79e6e6444e731eb08de4e063cdce75317dc004641a3b0fe100bd05c5179\nwitness w2 bdfbd9cd6b5011af98df9f50af75a4ccad14c1efced693503fe4b56766c0bb39\nwitness w3 e28443bb5022db638c93302a2e1b289a0dbd9905c0da755c943a6c747f5bdd64\ngroup quorum-rule 2 w1 w2 w3\nquorum quorum-rule\n",
+   "proof": "version=2\nlog=ed71c271c7208e35fa0400c1a9beefd6800e51beabb626bf0dbef0b263dbe607\nleaf=212803634ce4a3bfd438461c3d205b1c3afff03ae9719f83e71b1dd77831fbbd 18f834c41a72e0c19ecd1198cdedc7091a721646a931be92f2864e081858b3a30ecab655901b2da6769f22170e11848a94603d08750f1de1f37605b8e2a5bd0d\n\nsize=9\nroot_hash=6F6E084C30C4F006CD2D160B42DDF2DA56A918A2ED8EF2EB3FBBFB941DE4BD3B\nsignature=6cfcc9af7a3cf288d48924f6346c2b1f04c38a5e312cdd76b84d4336cd8ecf63cdb6643fe93fa849861549ae3fb70ba8a14f1a4b5c600345326198ea95594702\ncosignature=3561cde0dfdea4ab7abde61f5b7743f23790560d8a31b929fd41f3f51ca78b7d 1767225900 81aec48787753110963ced5199b192f528e59686103aa85831fe6123d28a56f9524759b1ce3d44bbc3cf35bbf980b04fa5abbc147dadbd2e397cc6ececa17407\ncosignature=eb4f10ca61922df2ac8a3c94a40b88650b5ebd39117c0da27541e9dc25e5e31e 1767225700 db91d70224a3d270cd397d271add4facc8787494cd779e5f309d0f4e70cf780353d77061e7ad254d326c2234b6369b0090a29e6d0cdc0618eba8b3a8bc07d30c\ncosignature=c746ca6d2e2e6e5c6e8365327390e8fe2d4aa717bd45cfee25347995689ec78e 1767225800 359577c6598a65866e51233e02790487005547fb320a118ef1a3180007af59ec10614dfae082f313a6e3e63cab8932187617c3c33ef7e4efb2148a83130cce04\n\nleaf_index=5\nnode_hash=a9305d980f362d449d9197da39861166c234e5aec4d547244c8f0cd3ab53fa75\nnode_hash=7d761e19fe919d9e29a7174c2081f785ef8f5cf4e6442c028e907fd2195e302d\nnode_hash=41521768cf9b8d920a6a78b719d4f5f2f1a9829bc90bd4722e7815c67cc716ed\nnode_hash=9820138ee5dafeafb594feb182f062e14069e1304267a56e1e4c2f4a0c528425\n",
+   "expect": "PASS",
+   "anchored_no_later_than": 1767225800,
+   "reason": null,
+   "sigsum_verify": "accept"
+  },
+  {
+   "name": "omitted-cosignature-raises-time-bound",
+   "checkpoint_text": "4gartha.test/anchor/1\n7\n/1Qq976I6MdzQbEmvJcEFm3FtOQvTrNuhzYzUFsDKqM=\n",
+   "anchor_public_key": "19be235bc9531b7727c7925b7e254197bcb9a0dde2faf3663e51f52ded91a192",
+   "policy": "# 4gartha.anchor-policy/1 TEST POLICY: every key here is public test data\nanchor-origin 4gartha.test/anchor/1\nanchor-key 19be235bc9531b7727c7925b7e254197bcb9a0dde2faf3663e51f52ded91a192\nlog 3ee73ce2f3beb6d902d574911947b6b3c92ec843736452a8ce74712011a658b9\nwitness w1 5a37d79e6e6444e731eb08de4e063cdce75317dc004641a3b0fe100bd05c5179\nwitness w2 bdfbd9cd6b5011af98df9f50af75a4ccad14c1efced693503fe4b56766c0bb39\nwitness w3 e28443bb5022db638c93302a2e1b289a0dbd9905c0da755c943a6c747f5bdd64\ngroup quorum-rule 2 w1 w2 w3\nquorum quorum-rule\n",
+   "proof": "version=2\nlog=ed71c271c7208e35fa0400c1a9beefd6800e51beabb626bf0dbef0b263dbe607\nleaf=212803634ce4a3bfd438461c3d205b1c3afff03ae9719f83e71b1dd77831fbbd 18f834c41a72e0c19ecd1198cdedc7091a721646a931be92f2864e081858b3a30ecab655901b2da6769f22170e11848a94603d08750f1de1f37605b8e2a5bd0d\n\nsize=9\nroot_hash=6f6e084c30c4f006cd2d160b42ddf2da56a918a2ed8ef2eb3fbbfb941de4bd3b\nsignature=6cfcc9af7a3cf288d48924f6346c2b1f04c38a5e312cdd76b84d4336cd8ecf63cdb6643fe93fa849861549ae3fb70ba8a14f1a4b5c600345326198ea95594702\ncosignature=3561cde0dfdea4ab7abde61f5b7743f23790560d8a31b929fd41f3f51ca78b7d 1767225900 81aec48787753110963ced5199b192f528e59686103aa85831fe6123d28a56f9524759b1ce3d44bbc3cf35bbf980b04fa5abbc147dadbd2e397cc6ececa17407\ncosignature=eb4f10ca61922df2ac8a3c94a40b88650b5ebd39117c0da27541e9dc25e5e31e 1767225700 db91d70224a3d270cd397d271add4facc8787494cd779e5f309d0f4e70cf780353d77061e7ad254d326c2234b6369b0090a29e6d0cdc0618eba8b3a8bc07d30c\n\nleaf_index=5\nnode_hash=a9305d980f362d449d9197da39861166c234e5aec4d547244c8f0cd3ab53fa75\nnode_hash=7d761e19fe919d9e29a7174c2081f785ef8f5cf4e6442c028e907fd2195e302d\nnode_hash=41521768cf9b8d920a6a78b719d4f5f2f1a9829bc90bd4722e7815c67cc716ed\nnode_hash=9820138ee5dafeafb594feb182f062e14069e1304267a56e1e4c2f4a0c528425\n",
+   "expect": "PASS",
+   "anchored_no_later_than": 1767225900,
+   "reason": null,
+   "sigsum_verify": "accept"
+  },
+  {
+   "name": "below-quorum",
+   "checkpoint_text": "4gartha.test/anchor/1\n7\n/1Qq976I6MdzQbEmvJcEFm3FtOQvTrNuhzYzUFsDKqM=\n",
+   "anchor_public_key": "19be235bc9531b7727c7925b7e254197bcb9a0dde2faf3663e51f52ded91a192",
+   "policy": "# 4gartha.anchor-policy/1 TEST POLICY: every key here is public test data\nanchor-origin 4gartha.test/anchor/1\nanchor-key 19be235bc9531b7727c7925b7e254197bcb9a0dde2faf3663e51f52ded91a192\nlog 3ee73ce2f3beb6d902d574911947b6b3c92ec843736452a8ce74712011a658b9\nwitness w1 5a37d79e6e6444e731eb08de4e063cdce75317dc004641a3b0fe100bd05c5179\nwitness w2 bdfbd9cd6b5011af98df9f50af75a4ccad14c1efced693503fe4b56766c0bb39\nwitness w3 e28443bb5022db638c93302a2e1b289a0dbd9905c0da755c943a6c747f5bdd64\ngroup quorum-rule 2 w1 w2 w3\nquorum quorum-rule\n",
+   "proof": "version=2\nlog=ed71c271c7208e35fa0400c1a9beefd6800e51beabb626bf0dbef0b263dbe607\nleaf=212803634ce4a3bfd438461c3d205b1c3afff03ae9719f83e71b1dd77831fbbd 18f834c41a72e0c19ecd1198cdedc7091a721646a931be92f2864e081858b3a30ecab655901b2da6769f22170e11848a94603d08750f1de1f37605b8e2a5bd0d\n\nsize=9\nroot_hash=6f6e084c30c4f006cd2d160b42ddf2da56a918a2ed8ef2eb3fbbfb941de4bd3b\nsignature=6cfcc9af7a3cf288d48924f6346c2b1f04c38a5e312cdd76b84d4336cd8ecf63cdb6643fe93fa849861549ae3fb70ba8a14f1a4b5c600345326198ea95594702\ncosignature=3561cde0dfdea4ab7abde61f5b7743f23790560d8a31b929fd41f3f51ca78b7d 1767225900 81aec48787753110963ced5199b192f528e59686103aa85831fe6123d28a56f9524759b1ce3d44bbc3cf35bbf980b04fa5abbc147dadbd2e397cc6ececa17407\n\nleaf_index=5\nnode_hash=a9305d980f362d449d9197da39861166c234e5aec4d547244c8f0cd3ab53fa75\nnode_hash=7d761e19fe919d9e29a7174c2081f785ef8f5cf4e6442c028e907fd2195e302d\nnode_hash=41521768cf9b8d920a6a78b719d4f5f2f1a9829bc90bd4722e7815c67cc716ed\nnode_hash=9820138ee5dafeafb594feb182f062e14069e1304267a56e1e4c2f4a0c528425\n",
+   "expect": "NOT_CHECKED",
+   "anchored_no_later_than": null,
+   "reason": "quorum not met",
+   "sigsum_verify": "reject"
+  },
+  {
+   "name": "below-quorum-unknown-witnesses-do-not-count",
+   "checkpoint_text": "4gartha.test/anchor/1\n7\n/1Qq976I6MdzQbEmvJcEFm3FtOQvTrNuhzYzUFsDKqM=\n",
+   "anchor_public_key": "19be235bc9531b7727c7925b7e254197bcb9a0dde2faf3663e51f52ded91a192",
+   "policy": "# 4gartha.anchor-policy/1 TEST POLICY: every key here is public test data\nanchor-origin 4gartha.test/anchor/1\nanchor-key 19be235bc9531b7727c7925b7e254197bcb9a0dde2faf3663e51f52ded91a192\nlog 3ee73ce2f3beb6d902d574911947b6b3c92ec843736452a8ce74712011a658b9\nwitness w1 5a37d79e6e6444e731eb08de4e063cdce75317dc004641a3b0fe100bd05c5179\nwitness w2 bdfbd9cd6b5011af98df9f50af75a4ccad14c1efced693503fe4b56766c0bb39\nwitness w3 e28443bb5022db638c93302a2e1b289a0dbd9905c0da755c943a6c747f5bdd64\ngroup quorum-rule 2 w1 w2 w3\nquorum quorum-rule\n",
+   "proof": "version=2\nlog=ed71c271c7208e35fa0400c1a9beefd6800e51beabb626bf0dbef0b263dbe607\nleaf=212803634ce4a3bfd438461c3d205b1c3afff03ae9719f83e71b1dd77831fbbd 18f834c41a72e0c19ecd1198cdedc7091a721646a931be92f2864e081858b3a30ecab655901b2da6769f22170e11848a94603d08750f1de1f37605b8e2a5bd0d\n\nsize=9\nroot_hash=6f6e084c30c4f006cd2d160b42ddf2da56a918a2ed8ef2eb3fbbfb941de4bd3b\nsignature=6cfcc9af7a3cf288d48924f6346c2b1f04c38a5e312cdd76b84d4336cd8ecf63cdb6643fe93fa849861549ae3fb70ba8a14f1a4b5c600345326198ea95594702\ncosignature=3561cde0dfdea4ab7abde61f5b7743f23790560d8a31b929fd41f3f51ca78b7d 1767225900 81aec48787753110963ced5199b192f528e59686103aa85831fe6123d28a56f9524759b1ce3d44bbc3cf35bbf980b04fa5abbc147dadbd2e397cc6ececa17407\ncosignature=57b1d42e2ac546c4dfbaf2e5f873074b9b74d30a0cfbc1edb372dd3ebe9898e1 1767225600 3a7550136dfb5c5cf3fd137efd082ff6314adfdc368b1c893a0fd769ca81d8f7fc941d7c1948fd246d35f2f72f9410a138f7f8e295aa418d9e571b02fa218901\n\nleaf_index=5\nnode_hash=a9305d980f362d449d9197da39861166c234e5aec4d547244c8f0cd3ab53fa75\nnode_hash=7d761e19fe919d9e29a7174c2081f785ef8f5cf4e6442c028e907fd2195e302d\nnode_hash=41521768cf9b8d920a6a78b719d4f5f2f1a9829bc90bd4722e7815c67cc716ed\nnode_hash=9820138ee5dafeafb594feb182f062e14069e1304267a56e1e4c2f4a0c528425\n",
+   "expect": "NOT_CHECKED",
+   "anchored_no_later_than": null,
+   "reason": "quorum not met",
+   "sigsum_verify": "reject"
+  },
+  {
+   "name": "no-cosignatures",
+   "checkpoint_text": "4gartha.test/anchor/1\n7\n/1Qq976I6MdzQbEmvJcEFm3FtOQvTrNuhzYzUFsDKqM=\n",
+   "anchor_public_key": "19be235bc9531b7727c7925b7e254197bcb9a0dde2faf3663e51f52ded91a192",
+   "policy": "# 4gartha.anchor-policy/1 TEST POLICY: every key here is public test data\nanchor-origin 4gartha.test/anchor/1\nanchor-key 19be235bc9531b7727c7925b7e254197bcb9a0dde2faf3663e51f52ded91a192\nlog 3ee73ce2f3beb6d902d574911947b6b3c92ec843736452a8ce74712011a658b9\nwitness w1 5a37d79e6e6444e731eb08de4e063cdce75317dc004641a3b0fe100bd05c5179\nwitness w2 bdfbd9cd6b5011af98df9f50af75a4ccad14c1efced693503fe4b56766c0bb39\nwitness w3 e28443bb5022db638c93302a2e1b289a0dbd9905c0da755c943a6c747f5bdd64\ngroup quorum-rule 2 w1 w2 w3\nquorum quorum-rule\n",
+   "proof": "version=2\nlog=ed71c271c7208e35fa0400c1a9beefd6800e51beabb626bf0dbef0b263dbe607\nleaf=212803634ce4a3bfd438461c3d205b1c3afff03ae9719f83e71b1dd77831fbbd 18f834c41a72e0c19ecd1198cdedc7091a721646a931be92f2864e081858b3a30ecab655901b2da6769f22170e11848a94603d08750f1de1f37605b8e2a5bd0d\n\nsize=9\nroot_hash=6f6e084c30c4f006cd2d160b42ddf2da56a918a2ed8ef2eb3fbbfb941de4bd3b\nsignature=6cfcc9af7a3cf288d48924f6346c2b1f04c38a5e312cdd76b84d4336cd8ecf63cdb6643fe93fa849861549ae3fb70ba8a14f1a4b5c600345326198ea95594702\n\nleaf_index=5\nnode_hash=a9305d980f362d449d9197da39861166c234e5aec4d547244c8f0cd3ab53fa75\nnode_hash=7d761e19fe919d9e29a7174c2081f785ef8f5cf4e6442c028e907fd2195e302d\nnode_hash=41521768cf9b8d920a6a78b719d4f5f2f1a9829bc90bd4722e7815c67cc716ed\nnode_hash=9820138ee5dafeafb594feb182f062e14069e1304267a56e1e4c2f4a0c528425\n",
+   "expect": "NOT_CHECKED",
+   "anchored_no_later_than": null,
+   "reason": "quorum not met",
+   "sigsum_verify": "reject"
+  },
+  {
+   "name": "tampered-cosignature-quorum-otherwise-met",
+   "checkpoint_text": "4gartha.test/anchor/1\n7\n/1Qq976I6MdzQbEmvJcEFm3FtOQvTrNuhzYzUFsDKqM=\n",
+   "anchor_public_key": "19be235bc9531b7727c7925b7e254197bcb9a0dde2faf3663e51f52ded91a192",
+   "policy": "# 4gartha.anchor-policy/1 TEST POLICY: every key here is public test data\nanchor-origin 4gartha.test/anchor/1\nanchor-key 19be235bc9531b7727c7925b7e254197bcb9a0dde2faf3663e51f52ded91a192\nlog 3ee73ce2f3beb6d902d574911947b6b3c92ec843736452a8ce74712011a658b9\nwitness w1 5a37d79e6e6444e731eb08de4e063cdce75317dc004641a3b0fe100bd05c5179\nwitness w2 bdfbd9cd6b5011af98df9f50af75a4ccad14c1efced693503fe4b56766c0bb39\nwitness w3 e28443bb5022db638c93302a2e1b289a0dbd9905c0da755c943a6c747f5bdd64\ngroup quorum-rule 2 w1 w2 w3\nquorum quorum-rule\n",
+   "proof": "version=2\nlog=ed71c271c7208e35fa0400c1a9beefd6800e51beabb626bf0dbef0b263dbe607\nleaf=212803634ce4a3bfd438461c3d205b1c3afff03ae9719f83e71b1dd77831fbbd 18f834c41a72e0c19ecd1198cdedc7091a721646a931be92f2864e081858b3a30ecab655901b2da6769f22170e11848a94603d08750f1de1f37605b8e2a5bd0d\n\nsize=9\nroot_hash=6f6e084c30c4f006cd2d160b42ddf2da56a918a2ed8ef2eb3fbbfb941de4bd3b\nsignature=6cfcc9af7a3cf288d48924f6346c2b1f04c38a5e312cdd76b84d4336cd8ecf63cdb6643fe93fa849861549ae3fb70ba8a14f1a4b5c600345326198ea95594702\ncosignature=3561cde0dfdea4ab7abde61f5b7743f23790560d8a31b929fd41f3f51ca78b7d 1767225900 81aec48787753110963ced5199b192f528e59686103aa85831fe6123d28a56f9524759b1ce3d44bbc3cf35bbf980b04fa5abbc147dadbd2e397cc6ececa17407\ncosignature=eb4f10ca61922df2ac8a3c94a40b88650b5ebd39117c0da27541e9dc25e5e31e 1767225700 db91d70224a2d270cd397d271add4facc8787494cd779e5f309d0f4e70cf780353d77061e7ad254d326c2234b6369b0090a29e6d0cdc0618eba8b3a8bc07d30c\ncosignature=c746ca6d2e2e6e5c6e8365327390e8fe2d4aa717bd45cfee25347995689ec78e 1767225800 359577c6598a65866e51233e02790487005547fb320a118ef1a3180007af59ec10614dfae082f313a6e3e63cab8932187617c3c33ef7e4efb2148a83130cce04\n\nleaf_index=5\nnode_hash=a9305d980f362d449d9197da39861166c234e5aec4d547244c8f0cd3ab53fa75\nnode_hash=7d761e19fe919d9e29a7174c2081f785ef8f5cf4e6442c028e907fd2195e302d\nnode_hash=41521768cf9b8d920a6a78b719d4f5f2f1a9829bc90bd4722e7815c67cc716ed\nnode_hash=9820138ee5dafeafb594feb182f062e14069e1304267a56e1e4c2f4a0c528425\n",
+   "expect": "FAIL",
+   "anchored_no_later_than": null,
+   "reason": "cosignature by policy witness 'w2' does not verify",
+   "sigsum_verify": "accept"
+  },
+  {
+   "name": "backdated-cosignature-timestamp",
+   "checkpoint_text": "4gartha.test/anchor/1\n7\n/1Qq976I6MdzQbEmvJcEFm3FtOQvTrNuhzYzUFsDKqM=\n",
+   "anchor_public_key": "19be235bc9531b7727c7925b7e254197bcb9a0dde2faf3663e51f52ded91a192",
+   "policy": "# 4gartha.anchor-policy/1 TEST POLICY: every key here is public test data\nanchor-origin 4gartha.test/anchor/1\nanchor-key 19be235bc9531b7727c7925b7e254197bcb9a0dde2faf3663e51f52ded91a192\nlog 3ee73ce2f3beb6d902d574911947b6b3c92ec843736452a8ce74712011a658b9\nwitness w1 5a37d79e6e6444e731eb08de4e063cdce75317dc004641a3b0fe100bd05c5179\nwitness w2 bdfbd9cd6b5011af98df9f50af75a4ccad14c1efced693503fe4b56766c0bb39\nwitness w3 e28443bb5022db638c93302a2e1b289a0dbd9905c0da755c943a6c747f5bdd64\ngroup quorum-rule 2 w1 w2 w3\nquorum quorum-rule\n",
+   "proof": "version=2\nlog=ed71c271c7208e35fa0400c1a9beefd6800e51beabb626bf0dbef0b263dbe607\nleaf=212803634ce4a3bfd438461c3d205b1c3afff03ae9719f83e71b1dd77831fbbd 18f834c41a72e0c19ecd1198cdedc7091a721646a931be92f2864e081858b3a30ecab655901b2da6769f22170e11848a94603d08750f1de1f37605b8e2a5bd0d\n\nsize=9\nroot_hash=6f6e084c30c4f006cd2d160b42ddf2da56a918a2ed8ef2eb3fbbfb941de4bd3b\nsignature=6cfcc9af7a3cf288d48924f6346c2b1f04c38a5e312cdd76b84d4336cd8ecf63cdb6643fe93fa849861549ae3fb70ba8a14f1a4b5c600345326198ea95594702\ncosignature=3561cde0dfdea4ab7abde61f5b7743f23790560d8a31b929fd41f3f51ca78b7d 1767225900 81aec48787753110963ced5199b192f528e59686103aa85831fe6123d28a56f9524759b1ce3d44bbc3cf35bbf980b04fa5abbc147dadbd2e397cc6ececa17407\ncosignature=eb4f10ca61922df2ac8a3c94a40b88650b5ebd39117c0da27541e9dc25e5e31e 1767139200 db91d70224a3d270cd397d271add4facc8787494cd779e5f309d0f4e70cf780353d77061e7ad254d326c2234b6369b0090a29e6d0cdc0618eba8b3a8bc07d30c\ncosignature=c746ca6d2e2e6e5c6e8365327390e8fe2d4aa717bd45cfee25347995689ec78e 1767225800 359577c6598a65866e51233e02790487005547fb320a118ef1a3180007af59ec10614dfae082f313a6e3e63cab8932187617c3c33ef7e4efb2148a83130cce04\n\nleaf_index=5\nnode_hash=a9305d980f362d449d9197da39861166c234e5aec4d547244c8f0cd3ab53fa75\nnode_hash=7d761e19fe919d9e29a7174c2081f785ef8f5cf4e6442c028e907fd2195e302d\nnode_hash=41521768cf9b8d920a6a78b719d4f5f2f1a9829bc90bd4722e7815c67cc716ed\nnode_hash=9820138ee5dafeafb594feb182f062e14069e1304267a56e1e4c2f4a0c528425\n",
+   "expect": "FAIL",
+   "anchored_no_later_than": null,
+   "reason": "cosignature by policy witness 'w2' does not verify",
+   "sigsum_verify": "accept"
+  },
+  {
+   "name": "tampered-tree-head-signature",
+   "checkpoint_text": "4gartha.test/anchor/1\n7\n/1Qq976I6MdzQbEmvJcEFm3FtOQvTrNuhzYzUFsDKqM=\n",
+   "anchor_public_key": "19be235bc9531b7727c7925b7e254197bcb9a0dde2faf3663e51f52ded91a192",
+   "policy": "# 4gartha.anchor-policy/1 TEST POLICY: every key here is public test data\nanchor-origin 4gartha.test/anchor/1\nanchor-key 19be235bc9531b7727c7925b7e254197bcb9a0dde2faf3663e51f52ded91a192\nlog 3ee73ce2f3beb6d902d574911947b6b3c92ec843736452a8ce74712011a658b9\nwitness w1 5a37d79e6e6444e731eb08de4e063cdce75317dc004641a3b0fe100bd05c5179\nwitness w2 bdfbd9cd6b5011af98df9f50af75a4ccad14c1efced693503fe4b56766c0bb39\nwitness w3 e28443bb5022db638c93302a2e1b289a0dbd9905c0da755c943a6c747f5bdd64\ngroup quorum-rule 2 w1 w2 w3\nquorum quorum-rule\n",
+   "proof": "version=2\nlog=ed71c271c7208e35fa0400c1a9beefd6800e51beabb626bf0dbef0b263dbe607\nleaf=212803634ce4a3bfd438461c3d205b1c3afff03ae9719f83e71b1dd77831fbbd 18f834c41a72e0c19ecd1198cdedc7091a721646a931be92f2864e081858b3a30ecab655901b2da6769f22170e11848a94603d08750f1de1f37605b8e2a5bd0d\n\nsize=9\nroot_hash=6f6e084c30c4f006cd2d160b42ddf2da56a918a2ed8ef2eb3fbbfb941de4bd3b\nsignature=6dfcc9af7a3cf288d48924f6346c2b1f04c38a5e312cdd76b84d4336cd8ecf63cdb6643fe93fa849861549ae3fb70ba8a14f1a4b5c600345326198ea95594702\ncosignature=3561cde0dfdea4ab7abde61f5b7743f23790560d8a31b929fd41f3f51ca78b7d 1767225900 81aec48787753110963ced5199b192f528e59686103aa85831fe6123d28a56f9524759b1ce3d44bbc3cf35bbf980b04fa5abbc147dadbd2e397cc6ececa17407\ncosignature=eb4f10ca61922df2ac8a3c94a40b88650b5ebd39117c0da27541e9dc25e5e31e 1767225700 db91d70224a3d270cd397d271add4facc8787494cd779e5f309d0f4e70cf780353d77061e7ad254d326c2234b6369b0090a29e6d0cdc0618eba8b3a8bc07d30c\ncosignature=c746ca6d2e2e6e5c6e8365327390e8fe2d4aa717bd45cfee25347995689ec78e 1767225800 359577c6598a65866e51233e02790487005547fb320a118ef1a3180007af59ec10614dfae082f313a6e3e63cab8932187617c3c33ef7e4efb2148a83130cce04\n\nleaf_index=5\nnode_hash=a9305d980f362d449d9197da39861166c234e5aec4d547244c8f0cd3ab53fa75\nnode_hash=7d761e19fe919d9e29a7174c2081f785ef8f5cf4e6442c028e907fd2195e302d\nnode_hash=41521768cf9b8d920a6a78b719d4f5f2f1a9829bc90bd4722e7815c67cc716ed\nnode_hash=9820138ee5dafeafb594feb182f062e14069e1304267a56e1e4c2f4a0c528425\n",
+   "expect": "FAIL",
+   "anchored_no_later_than": null,
+   "reason": "tree head signature",
+   "sigsum_verify": "reject"
+  },
+  {
+   "name": "tampered-root-hash",
+   "checkpoint_text": "4gartha.test/anchor/1\n7\n/1Qq976I6MdzQbEmvJcEFm3FtOQvTrNuhzYzUFsDKqM=\n",
+   "anchor_public_key": "19be235bc9531b7727c7925b7e254197bcb9a0dde2faf3663e51f52ded91a192",
+   "policy": "# 4gartha.anchor-policy/1 TEST POLICY: every key here is public test data\nanchor-origin 4gartha.test/anchor/1\nanchor-key 19be235bc9531b7727c7925b7e254197bcb9a0dde2faf3663e51f52ded91a192\nlog 3ee73ce2f3beb6d902d574911947b6b3c92ec843736452a8ce74712011a658b9\nwitness w1 5a37d79e6e6444e731eb08de4e063cdce75317dc004641a3b0fe100bd05c5179\nwitness w2 bdfbd9cd6b5011af98df9f50af75a4ccad14c1efced693503fe4b56766c0bb39\nwitness w3 e28443bb5022db638c93302a2e1b289a0dbd9905c0da755c943a6c747f5bdd64\ngroup quorum-rule 2 w1 w2 w3\nquorum quorum-rule\n",
+   "proof": "version=2\nlog=ed71c271c7208e35fa0400c1a9beefd6800e51beabb626bf0dbef0b263dbe607\nleaf=212803634ce4a3bfd438461c3d205b1c3afff03ae9719f83e71b1dd77831fbbd 18f834c41a72e0c19ecd1198cdedc7091a721646a931be92f2864e081858b3a30ecab655901b2da6769f22170e11848a94603d08750f1de1f37605b8e2a5bd0d\n\nsize=9\nroot_hash=6e6e084c30c4f006cd2d160b42ddf2da56a918a2ed8ef2eb3fbbfb941de4bd3b\nsignature=6cfcc9af7a3cf288d48924f6346c2b1f04c38a5e312cdd76b84d4336cd8ecf63cdb6643fe93fa849861549ae3fb70ba8a14f1a4b5c600345326198ea95594702\ncosignature=3561cde0dfdea4ab7abde61f5b7743f23790560d8a31b929fd41f3f51ca78b7d 1767225900 81aec48787753110963ced5199b192f528e59686103aa85831fe6123d28a56f9524759b1ce3d44bbc3cf35bbf980b04fa5abbc147dadbd2e397cc6ececa17407\ncosignature=eb4f10ca61922df2ac8a3c94a40b88650b5ebd39117c0da27541e9dc25e5e31e 1767225700 db91d70224a3d270cd397d271add4facc8787494cd779e5f309d0f4e70cf780353d77061e7ad254d326c2234b6369b0090a29e6d0cdc0618eba8b3a8bc07d30c\ncosignature=c746ca6d2e2e6e5c6e8365327390e8fe2d4aa717bd45cfee25347995689ec78e 1767225800 359577c6598a65866e51233e02790487005547fb320a118ef1a3180007af59ec10614dfae082f313a6e3e63cab8932187617c3c33ef7e4efb2148a83130cce04\n\nleaf_index=5\nnode_hash=a9305d980f362d449d9197da39861166c234e5aec4d547244c8f0cd3ab53fa75\nnode_hash=7d761e19fe919d9e29a7174c2081f785ef8f5cf4e6442c028e907fd2195e302d\nnode_hash=41521768cf9b8d920a6a78b719d4f5f2f1a9829bc90bd4722e7815c67cc716ed\nnode_hash=9820138ee5dafeafb594feb182f062e14069e1304267a56e1e4c2f4a0c528425\n",
+   "expect": "FAIL",
+   "anchored_no_later_than": null,
+   "reason": "does not lead to the root hash",
+   "sigsum_verify": "reject"
+  },
+  {
+   "name": "tampered-inclusion-path",
+   "checkpoint_text": "4gartha.test/anchor/1\n7\n/1Qq976I6MdzQbEmvJcEFm3FtOQvTrNuhzYzUFsDKqM=\n",
+   "anchor_public_key": "19be235bc9531b7727c7925b7e254197bcb9a0dde2faf3663e51f52ded91a192",
+   "policy": "# 4gartha.anchor-policy/1 TEST POLICY: every key here is public test data\nanchor-origin 4gartha.test/anchor/1\nanchor-key 19be235bc9531b7727c7925b7e254197bcb9a0dde2faf3663e51f52ded91a192\nlog 3ee73ce2f3beb6d902d574911947b6b3c92ec843736452a8ce74712011a658b9\nwitness w1 5a37d79e6e6444e731eb08de4e063cdce75317dc004641a3b0fe100bd05c5179\nwitness w2 bdfbd9cd6b5011af98df9f50af75a4ccad14c1efced693503fe4b56766c0bb39\nwitness w3 e28443bb5022db638c93302a2e1b289a0dbd9905c0da755c943a6c747f5bdd64\ngroup quorum-rule 2 w1 w2 w3\nquorum quorum-rule\n",
+   "proof": "version=2\nlog=ed71c271c7208e35fa0400c1a9beefd6800e51beabb626bf0dbef0b263dbe607\nleaf=212803634ce4a3bfd438461c3d205b1c3afff03ae9719f83e71b1dd77831fbbd 18f834c41a72e0c19ecd1198cdedc7091a721646a931be92f2864e081858b3a30ecab655901b2da6769f22170e11848a94603d08750f1de1f37605b8e2a5bd0d\n\nsize=9\nroot_hash=6f6e084c30c4f006cd2d160b42ddf2da56a918a2ed8ef2eb3fbbfb941de4bd3b\nsignature=6cfcc9af7a3cf288d48924f6346c2b1f04c38a5e312cdd76b84d4336cd8ecf63cdb6643fe93fa849861549ae3fb70ba8a14f1a4b5c600345326198ea95594702\ncosignature=3561cde0dfdea4ab7abde61f5b7743f23790560d8a31b929fd41f3f51ca78b7d 1767225900 81aec48787753110963ced5199b192f528e59686103aa85831fe6123d28a56f9524759b1ce3d44bbc3cf35bbf980b04fa5abbc147dadbd2e397cc6ececa17407\ncosignature=eb4f10ca61922df2ac8a3c94a40b88650b5ebd39117c0da27541e9dc25e5e31e 1767225700 db91d70224a3d270cd397d271add4facc8787494cd779e5f309d0f4e70cf780353d77061e7ad254d326c2234b6369b0090a29e6d0cdc0618eba8b3a8bc07d30c\ncosignature=c746ca6d2e2e6e5c6e8365327390e8fe2d4aa717bd45cfee25347995689ec78e 1767225800 359577c6598a65866e51233e02790487005547fb320a118ef1a3180007af59ec10614dfae082f313a6e3e63cab8932187617c3c33ef7e4efb2148a83130cce04\n\nleaf_index=5\nnode_hash=a9305d980f362d449d9197da39861166c234e5aec4d547244c8f0cd3ab53fa74\nnode_hash=7d761e19fe919d9e29a7174c2081f785ef8f5cf4e6442c028e907fd2195e302d\nnode_hash=41521768cf9b8d920a6a78b719d4f5f2f1a9829bc90bd4722e7815c67cc716ed\nnode_hash=9820138ee5dafeafb594feb182f062e14069e1304267a56e1e4c2f4a0c528425\n",
+   "expect": "FAIL",
+   "anchored_no_later_than": null,
+   "reason": "does not lead to the root hash",
+   "sigsum_verify": "reject"
+  },
+  {
+   "name": "wrong-leaf-index",
+   "checkpoint_text": "4gartha.test/anchor/1\n7\n/1Qq976I6MdzQbEmvJcEFm3FtOQvTrNuhzYzUFsDKqM=\n",
+   "anchor_public_key": "19be235bc9531b7727c7925b7e254197bcb9a0dde2faf3663e51f52ded91a192",
+   "policy": "# 4gartha.anchor-policy/1 TEST POLICY: every key here is public test data\nanchor-origin 4gartha.test/anchor/1\nanchor-key 19be235bc9531b7727c7925b7e254197bcb9a0dde2faf3663e51f52ded91a192\nlog 3ee73ce2f3beb6d902d574911947b6b3c92ec843736452a8ce74712011a658b9\nwitness w1 5a37d79e6e6444e731eb08de4e063cdce75317dc004641a3b0fe100bd05c5179\nwitness w2 bdfbd9cd6b5011af98df9f50af75a4ccad14c1efced693503fe4b56766c0bb39\nwitness w3 e28443bb5022db638c93302a2e1b289a0dbd9905c0da755c943a6c747f5bdd64\ngroup quorum-rule 2 w1 w2 w3\nquorum quorum-rule\n",
+   "proof": "version=2\nlog=ed71c271c7208e35fa0400c1a9beefd6800e51beabb626bf0dbef0b263dbe607\nleaf=212803634ce4a3bfd438461c3d205b1c3afff03ae9719f83e71b1dd77831fbbd 18f834c41a72e0c19ecd1198cdedc7091a721646a931be92f2864e081858b3a30ecab655901b2da6769f22170e11848a94603d08750f1de1f37605b8e2a5bd0d\n\nsize=9\nroot_hash=6f6e084c30c4f006cd2d160b42ddf2da56a918a2ed8ef2eb3fbbfb941de4bd3b\nsignature=6cfcc9af7a3cf288d48924f6346c2b1f04c38a5e312cdd76b84d4336cd8ecf63cdb6643fe93fa849861549ae3fb70ba8a14f1a4b5c600345326198ea95594702\ncosignature=3561cde0dfdea4ab7abde61f5b7743f23790560d8a31b929fd41f3f51ca78b7d 1767225900 81aec48787753110963ced5199b192f528e59686103aa85831fe6123d28a56f9524759b1ce3d44bbc3cf35bbf980b04fa5abbc147dadbd2e397cc6ececa17407\ncosignature=eb4f10ca61922df2ac8a3c94a40b88650b5ebd39117c0da27541e9dc25e5e31e 1767225700 db91d70224a3d270cd397d271add4facc8787494cd779e5f309d0f4e70cf780353d77061e7ad254d326c2234b6369b0090a29e6d0cdc0618eba8b3a8bc07d30c\ncosignature=c746ca6d2e2e6e5c6e8365327390e8fe2d4aa717bd45cfee25347995689ec78e 1767225800 359577c6598a65866e51233e02790487005547fb320a118ef1a3180007af59ec10614dfae082f313a6e3e63cab8932187617c3c33ef7e4efb2148a83130cce04\n\nleaf_index=6\nnode_hash=a9305d980f362d449d9197da39861166c234e5aec4d547244c8f0cd3ab53fa75\nnode_hash=7d761e19fe919d9e29a7174c2081f785ef8f5cf4e6442c028e907fd2195e302d\nnode_hash=41521768cf9b8d920a6a78b719d4f5f2f1a9829bc90bd4722e7815c67cc716ed\nnode_hash=9820138ee5dafeafb594feb182f062e14069e1304267a56e1e4c2f4a0c528425\n",
+   "expect": "FAIL",
+   "anchored_no_later_than": null,
+   "reason": "does not log this checkpoint",
+   "sigsum_verify": "reject"
+  },
+  {
+   "name": "leaf-index-out-of-range",
+   "checkpoint_text": "4gartha.test/anchor/1\n7\n/1Qq976I6MdzQbEmvJcEFm3FtOQvTrNuhzYzUFsDKqM=\n",
+   "anchor_public_key": "19be235bc9531b7727c7925b7e254197bcb9a0dde2faf3663e51f52ded91a192",
+   "policy": "# 4gartha.anchor-policy/1 TEST POLICY: every key here is public test data\nanchor-origin 4gartha.test/anchor/1\nanchor-key 19be235bc9531b7727c7925b7e254197bcb9a0dde2faf3663e51f52ded91a192\nlog 3ee73ce2f3beb6d902d574911947b6b3c92ec843736452a8ce74712011a658b9\nwitness w1 5a37d79e6e6444e731eb08de4e063cdce75317dc004641a3b0fe100bd05c5179\nwitness w2 bdfbd9cd6b5011af98df9f50af75a4ccad14c1efced693503fe4b56766c0bb39\nwitness w3 e28443bb5022db638c93302a2e1b289a0dbd9905c0da755c943a6c747f5bdd64\ngroup quorum-rule 2 w1 w2 w3\nquorum quorum-rule\n",
+   "proof": "version=2\nlog=ed71c271c7208e35fa0400c1a9beefd6800e51beabb626bf0dbef0b263dbe607\nleaf=212803634ce4a3bfd438461c3d205b1c3afff03ae9719f83e71b1dd77831fbbd 18f834c41a72e0c19ecd1198cdedc7091a721646a931be92f2864e081858b3a30ecab655901b2da6769f22170e11848a94603d08750f1de1f37605b8e2a5bd0d\n\nsize=9\nroot_hash=6f6e084c30c4f006cd2d160b42ddf2da56a918a2ed8ef2eb3fbbfb941de4bd3b\nsignature=6cfcc9af7a3cf288d48924f6346c2b1f04c38a5e312cdd76b84d4336cd8ecf63cdb6643fe93fa849861549ae3fb70ba8a14f1a4b5c600345326198ea95594702\ncosignature=3561cde0dfdea4ab7abde61f5b7743f23790560d8a31b929fd41f3f51ca78b7d 1767225900 81aec48787753110963ced5199b192f528e59686103aa85831fe6123d28a56f9524759b1ce3d44bbc3cf35bbf980b04fa5abbc147dadbd2e397cc6ececa17407\ncosignature=eb4f10ca61922df2ac8a3c94a40b88650b5ebd39117c0da27541e9dc25e5e31e 1767225700 db91d70224a3d270cd397d271add4facc8787494cd779e5f309d0f4e70cf780353d77061e7ad254d326c2234b6369b0090a29e6d0cdc0618eba8b3a8bc07d30c\ncosignature=c746ca6d2e2e6e5c6e8365327390e8fe2d4aa717bd45cfee25347995689ec78e 1767225800 359577c6598a65866e51233e02790487005547fb320a118ef1a3180007af59ec10614dfae082f313a6e3e63cab8932187617c3c33ef7e4efb2148a83130cce04\n\nleaf_index=9\nnode_hash=a9305d980f362d449d9197da39861166c234e5aec4d547244c8f0cd3ab53fa75\nnode_hash=7d761e19fe919d9e29a7174c2081f785ef8f5cf4e6442c028e907fd2195e302d\nnode_hash=41521768cf9b8d920a6a78b719d4f5f2f1a9829bc90bd4722e7815c67cc716ed\nnode_hash=9820138ee5dafeafb594feb182f062e14069e1304267a56e1e4c2f4a0c528425\n",
+   "expect": "FAIL",
+   "anchored_no_later_than": null,
+   "reason": "out of range",
+   "sigsum_verify": "reject"
+  },
+  {
+   "name": "path-too-short",
+   "checkpoint_text": "4gartha.test/anchor/1\n7\n/1Qq976I6MdzQbEmvJcEFm3FtOQvTrNuhzYzUFsDKqM=\n",
+   "anchor_public_key": "19be235bc9531b7727c7925b7e254197bcb9a0dde2faf3663e51f52ded91a192",
+   "policy": "# 4gartha.anchor-policy/1 TEST POLICY: every key here is public test data\nanchor-origin 4gartha.test/anchor/1\nanchor-key 19be235bc9531b7727c7925b7e254197bcb9a0dde2faf3663e51f52ded91a192\nlog 3ee73ce2f3beb6d902d574911947b6b3c92ec843736452a8ce74712011a658b9\nwitness w1 5a37d79e6e6444e731eb08de4e063cdce75317dc004641a3b0fe100bd05c5179\nwitness w2 bdfbd9cd6b5011af98df9f50af75a4ccad14c1efced693503fe4b56766c0bb39\nwitness w3 e28443bb5022db638c93302a2e1b289a0dbd9905c0da755c943a6c747f5bdd64\ngroup quorum-rule 2 w1 w2 w3\nquorum quorum-rule\n",
+   "proof": "version=2\nlog=ed71c271c7208e35fa0400c1a9beefd6800e51beabb626bf0dbef0b263dbe607\nleaf=212803634ce4a3bfd438461c3d205b1c3afff03ae9719f83e71b1dd77831fbbd 18f834c41a72e0c19ecd1198cdedc7091a721646a931be92f2864e081858b3a30ecab655901b2da6769f22170e11848a94603d08750f1de1f37605b8e2a5bd0d\n\nsize=9\nroot_hash=6f6e084c30c4f006cd2d160b42ddf2da56a918a2ed8ef2eb3fbbfb941de4bd3b\nsignature=6cfcc9af7a3cf288d48924f6346c2b1f04c38a5e312cdd76b84d4336cd8ecf63cdb6643fe93fa849861549ae3fb70ba8a14f1a4b5c600345326198ea95594702\ncosignature=3561cde0dfdea4ab7abde61f5b7743f23790560d8a31b929fd41f3f51ca78b7d 1767225900 81aec48787753110963ced5199b192f528e59686103aa85831fe6123d28a56f9524759b1ce3d44bbc3cf35bbf980b04fa5abbc147dadbd2e397cc6ececa17407\ncosignature=eb4f10ca61922df2ac8a3c94a40b88650b5ebd39117c0da27541e9dc25e5e31e 1767225700 db91d70224a3d270cd397d271add4facc8787494cd779e5f309d0f4e70cf780353d77061e7ad254d326c2234b6369b0090a29e6d0cdc0618eba8b3a8bc07d30c\ncosignature=c746ca6d2e2e6e5c6e8365327390e8fe2d4aa717bd45cfee25347995689ec78e 1767225800 359577c6598a65866e51233e02790487005547fb320a118ef1a3180007af59ec10614dfae082f313a6e3e63cab8932187617c3c33ef7e4efb2148a83130cce04\n\nleaf_index=5\nnode_hash=a9305d980f362d449d9197da39861166c234e5aec4d547244c8f0cd3ab53fa75\nnode_hash=7d761e19fe919d9e29a7174c2081f785ef8f5cf4e6442c028e907fd2195e302d\nnode_hash=41521768cf9b8d920a6a78b719d4f5f2f1a9829bc90bd4722e7815c67cc716ed\n",
+   "expect": "FAIL",
+   "anchored_no_later_than": null,
+   "reason": "inclusion path has",
+   "sigsum_verify": "reject"
+  },
+  {
+   "name": "path-too-long",
+   "checkpoint_text": "4gartha.test/anchor/1\n7\n/1Qq976I6MdzQbEmvJcEFm3FtOQvTrNuhzYzUFsDKqM=\n",
+   "anchor_public_key": "19be235bc9531b7727c7925b7e254197bcb9a0dde2faf3663e51f52ded91a192",
+   "policy": "# 4gartha.anchor-policy/1 TEST POLICY: every key here is public test data\nanchor-origin 4gartha.test/anchor/1\nanchor-key 19be235bc9531b7727c7925b7e254197bcb9a0dde2faf3663e51f52ded91a192\nlog 3ee73ce2f3beb6d902d574911947b6b3c92ec843736452a8ce74712011a658b9\nwitness w1 5a37d79e6e6444e731eb08de4e063cdce75317dc004641a3b0fe100bd05c5179\nwitness w2 bdfbd9cd6b5011af98df9f50af75a4ccad14c1efced693503fe4b56766c0bb39\nwitness w3 e28443bb5022db638c93302a2e1b289a0dbd9905c0da755c943a6c747f5bdd64\ngroup quorum-rule 2 w1 w2 w3\nquorum quorum-rule\n",
+   "proof": "version=2\nlog=ed71c271c7208e35fa0400c1a9beefd6800e51beabb626bf0dbef0b263dbe607\nleaf=212803634ce4a3bfd438461c3d205b1c3afff03ae9719f83e71b1dd77831fbbd 18f834c41a72e0c19ecd1198cdedc7091a721646a931be92f2864e081858b3a30ecab655901b2da6769f22170e11848a94603d08750f1de1f37605b8e2a5bd0d\n\nsize=9\nroot_hash=6f6e084c30c4f006cd2d160b42ddf2da56a918a2ed8ef2eb3fbbfb941de4bd3b\nsignature=6cfcc9af7a3cf288d48924f6346c2b1f04c38a5e312cdd76b84d4336cd8ecf63cdb6643fe93fa849861549ae3fb70ba8a14f1a4b5c600345326198ea95594702\ncosignature=3561cde0dfdea4ab7abde61f5b7743f23790560d8a31b929fd41f3f51ca78b7d 1767225900 81aec48787753110963ced5199b192f528e59686103aa85831fe6123d28a56f9524759b1ce3d44bbc3cf35bbf980b04fa5abbc147dadbd2e397cc6ececa17407\ncosignature=eb4f10ca61922df2ac8a3c94a40b88650b5ebd39117c0da27541e9dc25e5e31e 1767225700 db91d70224a3d270cd397d271add4facc8787494cd779e5f309d0f4e70cf780353d77061e7ad254d326c2234b6369b0090a29e6d0cdc0618eba8b3a8bc07d30c\ncosignature=c746ca6d2e2e6e5c6e8365327390e8fe2d4aa717bd45cfee25347995689ec78e 1767225800 359577c6598a65866e51233e02790487005547fb320a118ef1a3180007af59ec10614dfae082f313a6e3e63cab8932187617c3c33ef7e4efb2148a83130cce04\n\nleaf_index=5\nnode_hash=a9305d980f362d449d9197da39861166c234e5aec4d547244c8f0cd3ab53fa75\nnode_hash=7d761e19fe919d9e29a7174c2081f785ef8f5cf4e6442c028e907fd2195e302d\nnode_hash=41521768cf9b8d920a6a78b719d4f5f2f1a9829bc90bd4722e7815c67cc716ed\nnode_hash=9820138ee5dafeafb594feb182f062e14069e1304267a56e1e4c2f4a0c528425\nnode_hash=a9305d980f362d449d9197da39861166c234e5aec4d547244c8f0cd3ab53fa75\n",
+   "expect": "FAIL",
+   "anchored_no_later_than": null,
+   "reason": "inclusion path has",
+   "sigsum_verify": "reject"
+  },
+  {
+   "name": "unknown-log",
+   "checkpoint_text": "4gartha.test/anchor/1\n7\n/1Qq976I6MdzQbEmvJcEFm3FtOQvTrNuhzYzUFsDKqM=\n",
+   "anchor_public_key": "19be235bc9531b7727c7925b7e254197bcb9a0dde2faf3663e51f52ded91a192",
+   "policy": "# 4gartha.anchor-policy/1 TEST POLICY: every key here is public test data\nanchor-origin 4gartha.test/anchor/1\nanchor-key 19be235bc9531b7727c7925b7e254197bcb9a0dde2faf3663e51f52ded91a192\nlog 3ee73ce2f3beb6d902d574911947b6b3c92ec843736452a8ce74712011a658b9\nwitness w1 5a37d79e6e6444e731eb08de4e063cdce75317dc004641a3b0fe100bd05c5179\nwitness w2 bdfbd9cd6b5011af98df9f50af75a4ccad14c1efced693503fe4b56766c0bb39\nwitness w3 e28443bb5022db638c93302a2e1b289a0dbd9905c0da755c943a6c747f5bdd64\ngroup quorum-rule 2 w1 w2 w3\nquorum quorum-rule\n",
+   "proof": "version=2\nlog=ada9e300b6a16a2972f9a02b392538954bc5524640a20cee94fcbeafe5a71205\nleaf=212803634ce4a3bfd438461c3d205b1c3afff03ae9719f83e71b1dd77831fbbd 18f834c41a72e0c19ecd1198cdedc7091a721646a931be92f2864e081858b3a30ecab655901b2da6769f22170e11848a94603d08750f1de1f37605b8e2a5bd0d\n\nsize=9\nroot_hash=6f6e084c30c4f006cd2d160b42ddf2da56a918a2ed8ef2eb3fbbfb941de4bd3b\nsignature=cb0a4ea8215d2b7fcc7e93d514cc74ac3ca04a1cfa68c879219e894faa0cc4e5768f6c23ab5cba519d2f6e966fec55e94c296a44f8743cd99a0fb42cdc53180b\ncosignature=3561cde0dfdea4ab7abde61f5b7743f23790560d8a31b929fd41f3f51ca78b7d 1767225900 906d684bfb5d8ef0795733b9c16908336299017da96b78dd20589083adb62a7f9ee82a3e907bcd9a03c043eeb93c31ab2d5f73135c33bc1afed854b8a275b80f\ncosignature=eb4f10ca61922df2ac8a3c94a40b88650b5ebd39117c0da27541e9dc25e5e31e 1767225700 dbac303abd159ce8457086474f7fc5f1ed72583d2ebb6e9b650f76baffcdc4e2692c25dff532c38550afb429e02f3cbaeb6a9d97604c466e0208854c27580904\ncosignature=c746ca6d2e2e6e5c6e8365327390e8fe2d4aa717bd45cfee25347995689ec78e 1767225800 e58e6e54cb0dd1828c27dbbc71cad92b866746593e2ddbe4354baaa81b5e7259cf92afdc84ce0c1827333fc03d886e6f4b7e3664c6768bd09e0e8ed9f1ca620c\n\nleaf_index=5\nnode_hash=a9305d980f362d449d9197da39861166c234e5aec4d547244c8f0cd3ab53fa75\nnode_hash=7d761e19fe919d9e29a7174c2081f785ef8f5cf4e6442c028e907fd2195e302d\nnode_hash=41521768cf9b8d920a6a78b719d4f5f2f1a9829bc90bd4722e7815c67cc716ed\nnode_hash=9820138ee5dafeafb594feb182f062e14069e1304267a56e1e4c2f4a0c528425\n",
+   "expect": "NOT_CHECKED",
+   "anchored_no_later_than": null,
+   "reason": "is not in the policy",
+   "sigsum_verify": "reject"
+  },
+  {
+   "name": "leaf-by-other-submitter",
+   "checkpoint_text": "4gartha.test/anchor/1\n7\n/1Qq976I6MdzQbEmvJcEFm3FtOQvTrNuhzYzUFsDKqM=\n",
+   "anchor_public_key": "19be235bc9531b7727c7925b7e254197bcb9a0dde2faf3663e51f52ded91a192",
+   "policy": "# 4gartha.anchor-policy/1 TEST POLICY: every key here is public test data\nanchor-origin 4gartha.test/anchor/1\nanchor-key 19be235bc9531b7727c7925b7e254197bcb9a0dde2faf3663e51f52ded91a192\nlog 3ee73ce2f3beb6d902d574911947b6b3c92ec843736452a8ce74712011a658b9\nwitness w1 5a37d79e6e6444e731eb08de4e063cdce75317dc004641a3b0fe100bd05c5179\nwitness w2 bdfbd9cd6b5011af98df9f50af75a4ccad14c1efced693503fe4b56766c0bb39\nwitness w3 e28443bb5022db638c93302a2e1b289a0dbd9905c0da755c943a6c747f5bdd64\ngroup quorum-rule 2 w1 w2 w3\nquorum quorum-rule\n",
+   "proof": "version=2\nlog=ed71c271c7208e35fa0400c1a9beefd6800e51beabb626bf0dbef0b263dbe607\nleaf=fc0d4ebae9745ff00e13ff6c4945ab7e67d67e74f6132ef50ef567235386180c 662924f445d11cee4ece6e47f2007a668bf079090d324798fb182b5a1aa0d35242337cec5a6e873e2876bc0e625047451e11d86d06f0cdcce6e63976211fe20a\n\nsize=9\nroot_hash=d7009a667a0535603d7e15b8d51fdc83afeaa710bb5b61db0d7b5ea8117c508b\nsignature=e52a74eb2b481c7719cbd56e8f18ab33d57351dedbdb9971577535db38fd1fa55155ec43f9e2780259b32b070b71a17ef97862cb6e8998c7b7ba776a94db500e\ncosignature=3561cde0dfdea4ab7abde61f5b7743f23790560d8a31b929fd41f3f51ca78b7d 1767225900 c7dbfd8710c6adbe10f5aa553dcb2671b809fd1701623019132291480ff1b6cb616c7f4d41f6a3f695a7eb0f0739c11b1137e3cf37e9e16756e98b8601dd270d\ncosignature=eb4f10ca61922df2ac8a3c94a40b88650b5ebd39117c0da27541e9dc25e5e31e 1767225700 72ab76fb0dab9a35b73e86c0f5425c5dfed9a6f63c5af3793b0e1c886120ceba0518acc936bb6b12f55d87b2ff5f8be833bdd8803713f146a841fd3f588ca100\ncosignature=c746ca6d2e2e6e5c6e8365327390e8fe2d4aa717bd45cfee25347995689ec78e 1767225800 60a8d4f417bd1ecab3f532063d32f08acc3edc46b1a5bef6c74c42224627ce64fbfe9623b7522aeda463633fe5a5f99ab159d98f6d71c84e8d32ca1a0808540b\n\nleaf_index=5\nnode_hash=a9305d980f362d449d9197da39861166c234e5aec4d547244c8f0cd3ab53fa75\nnode_hash=7d761e19fe919d9e29a7174c2081f785ef8f5cf4e6442c028e907fd2195e302d\nnode_hash=41521768cf9b8d920a6a78b719d4f5f2f1a9829bc90bd4722e7815c67cc716ed\nnode_hash=9820138ee5dafeafb594feb182f062e14069e1304267a56e1e4c2f4a0c528425\n",
+   "expect": "NOT_CHECKED",
+   "anchored_no_later_than": null,
+   "reason": "not the policy's anchor key",
+   "sigsum_verify": "reject"
+  },
+  {
+   "name": "leaf-signed-over-message-not-checksum",
+   "checkpoint_text": "4gartha.test/anchor/1\n7\n/1Qq976I6MdzQbEmvJcEFm3FtOQvTrNuhzYzUFsDKqM=\n",
+   "anchor_public_key": "19be235bc9531b7727c7925b7e254197bcb9a0dde2faf3663e51f52ded91a192",
+   "policy": "# 4gartha.anchor-policy/1 TEST POLICY: every key here is public test data\nanchor-origin 4gartha.test/anchor/1\nanchor-key 19be235bc9531b7727c7925b7e254197bcb9a0dde2faf3663e51f52ded91a192\nlog 3ee73ce2f3beb6d902d574911947b6b3c92ec843736452a8ce74712011a658b9\nwitness w1 5a37d79e6e6444e731eb08de4e063cdce75317dc004641a3b0fe100bd05c5179\nwitness w2 bdfbd9cd6b5011af98df9f50af75a4ccad14c1efced693503fe4b56766c0bb39\nwitness w3 e28443bb5022db638c93302a2e1b289a0dbd9905c0da755c943a6c747f5bdd64\ngroup quorum-rule 2 w1 w2 w3\nquorum quorum-rule\n",
+   "proof": "version=2\nlog=ed71c271c7208e35fa0400c1a9beefd6800e51beabb626bf0dbef0b263dbe607\nleaf=212803634ce4a3bfd438461c3d205b1c3afff03ae9719f83e71b1dd77831fbbd 5702606c0e66a0758cd24911360bbf2ebb1c79c1e7cdca7ba27251f71271e893d9c0c0525722c163450ce0b7ff10541150c2e8943af640464599a976bdeaa003\n\nsize=9\nroot_hash=39e305c563d04a55147e01b372a2ee0e6acf255128c822115d35f1973597632c\nsignature=e210b81945231463306033f342cf08bb58f9a95f2ae6f59bb080507e0f0ed1dcacc3990065689677dd786d7d23cda49b1ca7b4dafbee33ede2c2a6429ee5d20d\ncosignature=3561cde0dfdea4ab7abde61f5b7743f23790560d8a31b929fd41f3f51ca78b7d 1767225900 b14cf8a55c75d68c70709f167132cb220172a3ac74bae53ca16a1f019922c044c2444937199388cb3ba03c53da8fa6de30a2452dee97cb8933c1d2b6cf50dd0f\ncosignature=eb4f10ca61922df2ac8a3c94a40b88650b5ebd39117c0da27541e9dc25e5e31e 1767225700 15a7c33d8dca97674c26c907c8d1d87111ea8a149a3bbed128837a3dcb12fe8c3f33b486731c5eebb69a2d723581da072997c8045ace47c1b66a745c0f00b50c\ncosignature=c746ca6d2e2e6e5c6e8365327390e8fe2d4aa717bd45cfee25347995689ec78e 1767225800 200d2f8befb50d54b26de1664c52ba043d6aaf77638e46b89b495bb5062dbabb543a96886cc2b40b93fa5df15cbd5b99516ec7c002c339809169ea30b6648d0a\n\nleaf_index=5\nnode_hash=a9305d980f362d449d9197da39861166c234e5aec4d547244c8f0cd3ab53fa75\nnode_hash=7d761e19fe919d9e29a7174c2081f785ef8f5cf4e6442c028e907fd2195e302d\nnode_hash=41521768cf9b8d920a6a78b719d4f5f2f1a9829bc90bd4722e7815c67cc716ed\nnode_hash=9820138ee5dafeafb594feb182f062e14069e1304267a56e1e4c2f4a0c528425\n",
+   "expect": "FAIL",
+   "anchored_no_later_than": null,
+   "reason": "Sigsum leaf signature",
+   "sigsum_verify": "reject"
+  },
+  {
+   "name": "proof-for-another-checkpoint",
+   "checkpoint_text": "4gartha.test/anchor/1\n7\n/1Qq976I6MdzQbEmvJcEFm3FtOQvTrNuhzYzUFsDKqM=\n",
+   "anchor_public_key": "19be235bc9531b7727c7925b7e254197bcb9a0dde2faf3663e51f52ded91a192",
+   "policy": "# 4gartha.anchor-policy/1 TEST POLICY: every key here is public test data\nanchor-origin 4gartha.test/anchor/1\nanchor-key 19be235bc9531b7727c7925b7e254197bcb9a0dde2faf3663e51f52ded91a192\nlog 3ee73ce2f3beb6d902d574911947b6b3c92ec843736452a8ce74712011a658b9\nwitness w1 5a37d79e6e6444e731eb08de4e063cdce75317dc004641a3b0fe100bd05c5179\nwitness w2 bdfbd9cd6b5011af98df9f50af75a4ccad14c1efced693503fe4b56766c0bb39\nwitness w3 e28443bb5022db638c93302a2e1b289a0dbd9905c0da755c943a6c747f5bdd64\ngroup quorum-rule 2 w1 w2 w3\nquorum quorum-rule\n",
+   "proof": "version=2\nlog=ed71c271c7208e35fa0400c1a9beefd6800e51beabb626bf0dbef0b263dbe607\nleaf=212803634ce4a3bfd438461c3d205b1c3afff03ae9719f83e71b1dd77831fbbd 19cdc6761939046f3d3a3c92a12123e234dbd2374be53971c9dc1fbb7c79b1e582b2200cffeecad19f09d69d779c39d91cff6c7d7dfe64efc9923d44753bd005\n\nsize=9\nroot_hash=86030d2a17bad4ab7a626f60118f8547927c6ff6dd9860204503bc33324bb503\nsignature=52a7e74cfe1652d39f83dfd1e7d501a1274ddf920f2a13be295320e9c9c76155ef902b29a64e988cf5c2eb1014d3378326ffb04e7544c8cd4963d5bf29fbab04\ncosignature=3561cde0dfdea4ab7abde61f5b7743f23790560d8a31b929fd41f3f51ca78b7d 1767225900 1a69b3a04860edf91177e58a4fee198e6da6abf40fbfdffaeace6ae69b874f8c90ed855a10c8084d7245aaa8c14c845d9307cb66d8a9408b5e97c54b32fc1304\ncosignature=eb4f10ca61922df2ac8a3c94a40b88650b5ebd39117c0da27541e9dc25e5e31e 1767225700 02279703174143718a2a66b6a299a6b8a4116f868d5855e5cd0eab1ed2a3cbf59a9ab53b5c0f4a03d3aec92b90341c9b439f5d3092cf0568ddca599b58321401\ncosignature=c746ca6d2e2e6e5c6e8365327390e8fe2d4aa717bd45cfee25347995689ec78e 1767225800 f9d476014bdeb0b39cb47db88a83ec50c5f058f3757126d71ffaf3b98e92ba1e5f7b805211a9d195e08833ada3c6f43f92e64f40e22206a04b6966225395d90c\n\nleaf_index=5\nnode_hash=a9305d980f362d449d9197da39861166c234e5aec4d547244c8f0cd3ab53fa75\nnode_hash=7d761e19fe919d9e29a7174c2081f785ef8f5cf4e6442c028e907fd2195e302d\nnode_hash=41521768cf9b8d920a6a78b719d4f5f2f1a9829bc90bd4722e7815c67cc716ed\nnode_hash=9820138ee5dafeafb594feb182f062e14069e1304267a56e1e4c2f4a0c528425\n",
+   "expect": "FAIL",
+   "anchored_no_later_than": null,
+   "reason": "does not log this checkpoint",
+   "sigsum_verify": "reject"
+  },
+  {
+   "name": "format-version-1",
+   "checkpoint_text": "4gartha.test/anchor/1\n7\n/1Qq976I6MdzQbEmvJcEFm3FtOQvTrNuhzYzUFsDKqM=\n",
+   "anchor_public_key": "19be235bc9531b7727c7925b7e254197bcb9a0dde2faf3663e51f52ded91a192",
+   "policy": "# 4gartha.anchor-policy/1 TEST POLICY: every key here is public test data\nanchor-origin 4gartha.test/anchor/1\nanchor-key 19be235bc9531b7727c7925b7e254197bcb9a0dde2faf3663e51f52ded91a192\nlog 3ee73ce2f3beb6d902d574911947b6b3c92ec843736452a8ce74712011a658b9\nwitness w1 5a37d79e6e6444e731eb08de4e063cdce75317dc004641a3b0fe100bd05c5179\nwitness w2 bdfbd9cd6b5011af98df9f50af75a4ccad14c1efced693503fe4b56766c0bb39\nwitness w3 e28443bb5022db638c93302a2e1b289a0dbd9905c0da755c943a6c747f5bdd64\ngroup quorum-rule 2 w1 w2 w3\nquorum quorum-rule\n",
+   "proof": "version=1\nlog=ed71c271c7208e35fa0400c1a9beefd6800e51beabb626bf0dbef0b263dbe607\nleaf=d78a 212803634ce4a3bfd438461c3d205b1c3afff03ae9719f83e71b1dd77831fbbd 18f834c41a72e0c19ecd1198cdedc7091a721646a931be92f2864e081858b3a30ecab655901b2da6769f22170e11848a94603d08750f1de1f37605b8e2a5bd0d\n\nsize=9\nroot_hash=6f6e084c30c4f006cd2d160b42ddf2da56a918a2ed8ef2eb3fbbfb941de4bd3b\nsignature=6cfcc9af7a3cf288d48924f6346c2b1f04c38a5e312cdd76b84d4336cd8ecf63cdb6643fe93fa849861549ae3fb70ba8a14f1a4b5c600345326198ea95594702\ncosignature=3561cde0dfdea4ab7abde61f5b7743f23790560d8a31b929fd41f3f51ca78b7d 1767225900 81aec48787753110963ced5199b192f528e59686103aa85831fe6123d28a56f9524759b1ce3d44bbc3cf35bbf980b04fa5abbc147dadbd2e397cc6ececa17407\ncosignature=eb4f10ca61922df2ac8a3c94a40b88650b5ebd39117c0da27541e9dc25e5e31e 1767225700 db91d70224a3d270cd397d271add4facc8787494cd779e5f309d0f4e70cf780353d77061e7ad254d326c2234b6369b0090a29e6d0cdc0618eba8b3a8bc07d30c\ncosignature=c746ca6d2e2e6e5c6e8365327390e8fe2d4aa717bd45cfee25347995689ec78e 1767225800 359577c6598a65866e51233e02790487005547fb320a118ef1a3180007af59ec10614dfae082f313a6e3e63cab8932187617c3c33ef7e4efb2148a83130cce04\n\nleaf_index=5\nnode_hash=a9305d980f362d449d9197da39861166c234e5aec4d547244c8f0cd3ab53fa75\nnode_hash=7d761e19fe919d9e29a7174c2081f785ef8f5cf4e6442c028e907fd2195e302d\nnode_hash=41521768cf9b8d920a6a78b719d4f5f2f1a9829bc90bd4722e7815c67cc716ed\nnode_hash=9820138ee5dafeafb594feb182f062e14069e1304267a56e1e4c2f4a0c528425\n",
+   "expect": "FAIL",
+   "anchored_no_later_than": null,
+   "reason": "pins version 2",
+   "sigsum_verify": "accept"
+  },
+  {
+   "name": "format-version-3",
+   "checkpoint_text": "4gartha.test/anchor/1\n7\n/1Qq976I6MdzQbEmvJcEFm3FtOQvTrNuhzYzUFsDKqM=\n",
+   "anchor_public_key": "19be235bc9531b7727c7925b7e254197bcb9a0dde2faf3663e51f52ded91a192",
+   "policy": "# 4gartha.anchor-policy/1 TEST POLICY: every key here is public test data\nanchor-origin 4gartha.test/anchor/1\nanchor-key 19be235bc9531b7727c7925b7e254197bcb9a0dde2faf3663e51f52ded91a192\nlog 3ee73ce2f3beb6d902d574911947b6b3c92ec843736452a8ce74712011a658b9\nwitness w1 5a37d79e6e6444e731eb08de4e063cdce75317dc004641a3b0fe100bd05c5179\nwitness w2 bdfbd9cd6b5011af98df9f50af75a4ccad14c1efced693503fe4b56766c0bb39\nwitness w3 e28443bb5022db638c93302a2e1b289a0dbd9905c0da755c943a6c747f5bdd64\ngroup quorum-rule 2 w1 w2 w3\nquorum quorum-rule\n",
+   "proof": "version=3\nlog=ed71c271c7208e35fa0400c1a9beefd6800e51beabb626bf0dbef0b263dbe607\nleaf=212803634ce4a3bfd438461c3d205b1c3afff03ae9719f83e71b1dd77831fbbd 18f834c41a72e0c19ecd1198cdedc7091a721646a931be92f2864e081858b3a30ecab655901b2da6769f22170e11848a94603d08750f1de1f37605b8e2a5bd0d\n\nsize=9\nroot_hash=6f6e084c30c4f006cd2d160b42ddf2da56a918a2ed8ef2eb3fbbfb941de4bd3b\nsignature=6cfcc9af7a3cf288d48924f6346c2b1f04c38a5e312cdd76b84d4336cd8ecf63cdb6643fe93fa849861549ae3fb70ba8a14f1a4b5c600345326198ea95594702\ncosignature=3561cde0dfdea4ab7abde61f5b7743f23790560d8a31b929fd41f3f51ca78b7d 1767225900 81aec48787753110963ced5199b192f528e59686103aa85831fe6123d28a56f9524759b1ce3d44bbc3cf35bbf980b04fa5abbc147dadbd2e397cc6ececa17407\ncosignature=eb4f10ca61922df2ac8a3c94a40b88650b5ebd39117c0da27541e9dc25e5e31e 1767225700 db91d70224a3d270cd397d271add4facc8787494cd779e5f309d0f4e70cf780353d77061e7ad254d326c2234b6369b0090a29e6d0cdc0618eba8b3a8bc07d30c\ncosignature=c746ca6d2e2e6e5c6e8365327390e8fe2d4aa717bd45cfee25347995689ec78e 1767225800 359577c6598a65866e51233e02790487005547fb320a118ef1a3180007af59ec10614dfae082f313a6e3e63cab8932187617c3c33ef7e4efb2148a83130cce04\n\nleaf_index=5\nnode_hash=a9305d980f362d449d9197da39861166c234e5aec4d547244c8f0cd3ab53fa75\nnode_hash=7d761e19fe919d9e29a7174c2081f785ef8f5cf4e6442c028e907fd2195e302d\nnode_hash=41521768cf9b8d920a6a78b719d4f5f2f1a9829bc90bd4722e7815c67cc716ed\nnode_hash=9820138ee5dafeafb594feb182f062e14069e1304267a56e1e4c2f4a0c528425\n",
+   "expect": "FAIL",
+   "anchored_no_later_than": null,
+   "reason": "pins version 2",
+   "sigsum_verify": "reject"
+  },
+  {
+   "name": "duplicate-cosignature-key-hash",
+   "checkpoint_text": "4gartha.test/anchor/1\n7\n/1Qq976I6MdzQbEmvJcEFm3FtOQvTrNuhzYzUFsDKqM=\n",
+   "anchor_public_key": "19be235bc9531b7727c7925b7e254197bcb9a0dde2faf3663e51f52ded91a192",
+   "policy": "# 4gartha.anchor-policy/1 TEST POLICY: every key here is public test data\nanchor-origin 4gartha.test/anchor/1\nanchor-key 19be235bc9531b7727c7925b7e254197bcb9a0dde2faf3663e51f52ded91a192\nlog 3ee73ce2f3beb6d902d574911947b6b3c92ec843736452a8ce74712011a658b9\nwitness w1 5a37d79e6e6444e731eb08de4e063cdce75317dc004641a3b0fe100bd05c5179\nwitness w2 bdfbd9cd6b5011af98df9f50af75a4ccad14c1efced693503fe4b56766c0bb39\nwitness w3 e28443bb5022db638c93302a2e1b289a0dbd9905c0da755c943a6c747f5bdd64\ngroup quorum-rule 2 w1 w2 w3\nquorum quorum-rule\n",
+   "proof": "version=2\nlog=ed71c271c7208e35fa0400c1a9beefd6800e51beabb626bf0dbef0b263dbe607\nleaf=212803634ce4a3bfd438461c3d205b1c3afff03ae9719f83e71b1dd77831fbbd 18f834c41a72e0c19ecd1198cdedc7091a721646a931be92f2864e081858b3a30ecab655901b2da6769f22170e11848a94603d08750f1de1f37605b8e2a5bd0d\n\nsize=9\nroot_hash=6f6e084c30c4f006cd2d160b42ddf2da56a918a2ed8ef2eb3fbbfb941de4bd3b\nsignature=6cfcc9af7a3cf288d48924f6346c2b1f04c38a5e312cdd76b84d4336cd8ecf63cdb6643fe93fa849861549ae3fb70ba8a14f1a4b5c600345326198ea95594702\ncosignature=3561cde0dfdea4ab7abde61f5b7743f23790560d8a31b929fd41f3f51ca78b7d 1767225900 81aec48787753110963ced5199b192f528e59686103aa85831fe6123d28a56f9524759b1ce3d44bbc3cf35bbf980b04fa5abbc147dadbd2e397cc6ececa17407\ncosignature=3561cde0dfdea4ab7abde61f5b7743f23790560d8a31b929fd41f3f51ca78b7d 1767225900 81aec48787753110963ced5199b192f528e59686103aa85831fe6123d28a56f9524759b1ce3d44bbc3cf35bbf980b04fa5abbc147dadbd2e397cc6ececa17407\ncosignature=eb4f10ca61922df2ac8a3c94a40b88650b5ebd39117c0da27541e9dc25e5e31e 1767225700 db91d70224a3d270cd397d271add4facc8787494cd779e5f309d0f4e70cf780353d77061e7ad254d326c2234b6369b0090a29e6d0cdc0618eba8b3a8bc07d30c\ncosignature=c746ca6d2e2e6e5c6e8365327390e8fe2d4aa717bd45cfee25347995689ec78e 1767225800 359577c6598a65866e51233e02790487005547fb320a118ef1a3180007af59ec10614dfae082f313a6e3e63cab8932187617c3c33ef7e4efb2148a83130cce04\n\nleaf_index=5\nnode_hash=a9305d980f362d449d9197da39861166c234e5aec4d547244c8f0cd3ab53fa75\nnode_hash=7d761e19fe919d9e29a7174c2081f785ef8f5cf4e6442c028e907fd2195e302d\nnode_hash=41521768cf9b8d920a6a78b719d4f5f2f1a9829bc90bd4722e7815c67cc716ed\nnode_hash=9820138ee5dafeafb594feb182f062e14069e1304267a56e1e4c2f4a0c528425\n",
+   "expect": "FAIL",
+   "anchored_no_later_than": null,
+   "reason": "same key hash",
+   "sigsum_verify": "reject"
+  },
+  {
+   "name": "crlf",
+   "checkpoint_text": "4gartha.test/anchor/1\n7\n/1Qq976I6MdzQbEmvJcEFm3FtOQvTrNuhzYzUFsDKqM=\n",
+   "anchor_public_key": "19be235bc9531b7727c7925b7e254197bcb9a0dde2faf3663e51f52ded91a192",
+   "policy": "# 4gartha.anchor-policy/1 TEST POLICY: every key here is public test data\nanchor-origin 4gartha.test/anchor/1\nanchor-key 19be235bc9531b7727c7925b7e254197bcb9a0dde2faf3663e51f52ded91a192\nlog 3ee73ce2f3beb6d902d574911947b6b3c92ec843736452a8ce74712011a658b9\nwitness w1 5a37d79e6e6444e731eb08de4e063cdce75317dc004641a3b0fe100bd05c5179\nwitness w2 bdfbd9cd6b5011af98df9f50af75a4ccad14c1efced693503fe4b56766c0bb39\nwitness w3 e28443bb5022db638c93302a2e1b289a0dbd9905c0da755c943a6c747f5bdd64\ngroup quorum-rule 2 w1 w2 w3\nquorum quorum-rule\n",
+   "proof": "version=2\r\nlog=ed71c271c7208e35fa0400c1a9beefd6800e51beabb626bf0dbef0b263dbe607\r\nleaf=212803634ce4a3bfd438461c3d205b1c3afff03ae9719f83e71b1dd77831fbbd 18f834c41a72e0c19ecd1198cdedc7091a721646a931be92f2864e081858b3a30ecab655901b2da6769f22170e11848a94603d08750f1de1f37605b8e2a5bd0d\r\n\r\nsize=9\r\nroot_hash=6f6e084c30c4f006cd2d160b42ddf2da56a918a2ed8ef2eb3fbbfb941de4bd3b\r\nsignature=6cfcc9af7a3cf288d48924f6346c2b1f04c38a5e312cdd76b84d4336cd8ecf63cdb6643fe93fa849861549ae3fb70ba8a14f1a4b5c600345326198ea95594702\r\ncosignature=3561cde0dfdea4ab7abde61f5b7743f23790560d8a31b929fd41f3f51ca78b7d 1767225900 81aec48787753110963ced5199b192f528e59686103aa85831fe6123d28a56f9524759b1ce3d44bbc3cf35bbf980b04fa5abbc147dadbd2e397cc6ececa17407\r\ncosignature=eb4f10ca61922df2ac8a3c94a40b88650b5ebd39117c0da27541e9dc25e5e31e 1767225700 db91d70224a3d270cd397d271add4facc8787494cd779e5f309d0f4e70cf780353d77061e7ad254d326c2234b6369b0090a29e6d0cdc0618eba8b3a8bc07d30c\r\ncosignature=c746ca6d2e2e6e5c6e8365327390e8fe2d4aa717bd45cfee25347995689ec78e 1767225800 359577c6598a65866e51233e02790487005547fb320a118ef1a3180007af59ec10614dfae082f313a6e3e63cab8932187617c3c33ef7e4efb2148a83130cce04\r\n\r\nleaf_index=5\r\nnode_hash=a9305d980f362d449d9197da39861166c234e5aec4d547244c8f0cd3ab53fa75\r\nnode_hash=7d761e19fe919d9e29a7174c2081f785ef8f5cf4e6442c028e907fd2195e302d\r\nnode_hash=41521768cf9b8d920a6a78b719d4f5f2f1a9829bc90bd4722e7815c67cc716ed\r\nnode_hash=9820138ee5dafeafb594feb182f062e14069e1304267a56e1e4c2f4a0c528425\r\n",
+   "expect": "FAIL",
+   "anchored_no_later_than": null,
+   "reason": "invalid",
+   "sigsum_verify": "reject"
+  },
+  {
+   "name": "double-space-in-cosignature",
+   "checkpoint_text": "4gartha.test/anchor/1\n7\n/1Qq976I6MdzQbEmvJcEFm3FtOQvTrNuhzYzUFsDKqM=\n",
+   "anchor_public_key": "19be235bc9531b7727c7925b7e254197bcb9a0dde2faf3663e51f52ded91a192",
+   "policy": "# 4gartha.anchor-policy/1 TEST POLICY: every key here is public test data\nanchor-origin 4gartha.test/anchor/1\nanchor-key 19be235bc9531b7727c7925b7e254197bcb9a0dde2faf3663e51f52ded91a192\nlog 3ee73ce2f3beb6d902d574911947b6b3c92ec843736452a8ce74712011a658b9\nwitness w1 5a37d79e6e6444e731eb08de4e063cdce75317dc004641a3b0fe100bd05c5179\nwitness w2 bdfbd9cd6b5011af98df9f50af75a4ccad14c1efced693503fe4b56766c0bb39\nwitness w3 e28443bb5022db638c93302a2e1b289a0dbd9905c0da755c943a6c747f5bdd64\ngroup quorum-rule 2 w1 w2 w3\nquorum quorum-rule\n",
+   "proof": "version=2\nlog=ed71c271c7208e35fa0400c1a9beefd6800e51beabb626bf0dbef0b263dbe607\nleaf=212803634ce4a3bfd438461c3d205b1c3afff03ae9719f83e71b1dd77831fbbd 18f834c41a72e0c19ecd1198cdedc7091a721646a931be92f2864e081858b3a30ecab655901b2da6769f22170e11848a94603d08750f1de1f37605b8e2a5bd0d\n\nsize=9\nroot_hash=6f6e084c30c4f006cd2d160b42ddf2da56a918a2ed8ef2eb3fbbfb941de4bd3b\nsignature=6cfcc9af7a3cf288d48924f6346c2b1f04c38a5e312cdd76b84d4336cd8ecf63cdb6643fe93fa849861549ae3fb70ba8a14f1a4b5c600345326198ea95594702\ncosignature=3561cde0dfdea4ab7abde61f5b7743f23790560d8a31b929fd41f3f51ca78b7d  1767225900 81aec48787753110963ced5199b192f528e59686103aa85831fe6123d28a56f9524759b1ce3d44bbc3cf35bbf980b04fa5abbc147dadbd2e397cc6ececa17407\ncosignature=eb4f10ca61922df2ac8a3c94a40b88650b5ebd39117c0da27541e9dc25e5e31e 1767225700 db91d70224a3d270cd397d271add4facc8787494cd779e5f309d0f4e70cf780353d77061e7ad254d326c2234b6369b0090a29e6d0cdc0618eba8b3a8bc07d30c\ncosignature=c746ca6d2e2e6e5c6e8365327390e8fe2d4aa717bd45cfee25347995689ec78e 1767225800 359577c6598a65866e51233e02790487005547fb320a118ef1a3180007af59ec10614dfae082f313a6e3e63cab8932187617c3c33ef7e4efb2148a83130cce04\n\nleaf_index=5\nnode_hash=a9305d980f362d449d9197da39861166c234e5aec4d547244c8f0cd3ab53fa75\nnode_hash=7d761e19fe919d9e29a7174c2081f785ef8f5cf4e6442c028e907fd2195e302d\nnode_hash=41521768cf9b8d920a6a78b719d4f5f2f1a9829bc90bd4722e7815c67cc716ed\nnode_hash=9820138ee5dafeafb594feb182f062e14069e1304267a56e1e4c2f4a0c528425\n",
+   "expect": "FAIL",
+   "anchored_no_later_than": null,
+   "reason": "exactly 3 space-separated values",
+   "sigsum_verify": "reject"
+  },
+  {
+   "name": "size-leading-zero",
+   "checkpoint_text": "4gartha.test/anchor/1\n7\n/1Qq976I6MdzQbEmvJcEFm3FtOQvTrNuhzYzUFsDKqM=\n",
+   "anchor_public_key": "19be235bc9531b7727c7925b7e254197bcb9a0dde2faf3663e51f52ded91a192",
+   "policy": "# 4gartha.anchor-policy/1 TEST POLICY: every key here is public test data\nanchor-origin 4gartha.test/anchor/1\nanchor-key 19be235bc9531b7727c7925b7e254197bcb9a0dde2faf3663e51f52ded91a192\nlog 3ee73ce2f3beb6d902d574911947b6b3c92ec843736452a8ce74712011a658b9\nwitness w1 5a37d79e6e6444e731eb08de4e063cdce75317dc004641a3b0fe100bd05c5179\nwitness w2 bdfbd9cd6b5011af98df9f50af75a4ccad14c1efced693503fe4b56766c0bb39\nwitness w3 e28443bb5022db638c93302a2e1b289a0dbd9905c0da755c943a6c747f5bdd64\ngroup quorum-rule 2 w1 w2 w3\nquorum quorum-rule\n",
+   "proof": "version=2\nlog=ed71c271c7208e35fa0400c1a9beefd6800e51beabb626bf0dbef0b263dbe607\nleaf=212803634ce4a3bfd438461c3d205b1c3afff03ae9719f83e71b1dd77831fbbd 18f834c41a72e0c19ecd1198cdedc7091a721646a931be92f2864e081858b3a30ecab655901b2da6769f22170e11848a94603d08750f1de1f37605b8e2a5bd0d\n\nsize=09\nroot_hash=6f6e084c30c4f006cd2d160b42ddf2da56a918a2ed8ef2eb3fbbfb941de4bd3b\nsignature=6cfcc9af7a3cf288d48924f6346c2b1f04c38a5e312cdd76b84d4336cd8ecf63cdb6643fe93fa849861549ae3fb70ba8a14f1a4b5c600345326198ea95594702\ncosignature=3561cde0dfdea4ab7abde61f5b7743f23790560d8a31b929fd41f3f51ca78b7d 1767225900 81aec48787753110963ced5199b192f528e59686103aa85831fe6123d28a56f9524759b1ce3d44bbc3cf35bbf980b04fa5abbc147dadbd2e397cc6ececa17407\ncosignature=eb4f10ca61922df2ac8a3c94a40b88650b5ebd39117c0da27541e9dc25e5e31e 1767225700 db91d70224a3d270cd397d271add4facc8787494cd779e5f309d0f4e70cf780353d77061e7ad254d326c2234b6369b0090a29e6d0cdc0618eba8b3a8bc07d30c\ncosignature=c746ca6d2e2e6e5c6e8365327390e8fe2d4aa717bd45cfee25347995689ec78e 1767225800 359577c6598a65866e51233e02790487005547fb320a118ef1a3180007af59ec10614dfae082f313a6e3e63cab8932187617c3c33ef7e4efb2148a83130cce04\n\nleaf_index=5\nnode_hash=a9305d980f362d449d9197da39861166c234e5aec4d547244c8f0cd3ab53fa75\nnode_hash=7d761e19fe919d9e29a7174c2081f785ef8f5cf4e6442c028e907fd2195e302d\nnode_hash=41521768cf9b8d920a6a78b719d4f5f2f1a9829bc90bd4722e7815c67cc716ed\nnode_hash=9820138ee5dafeafb594feb182f062e14069e1304267a56e1e4c2f4a0c528425\n",
+   "expect": "FAIL",
+   "anchored_no_later_than": null,
+   "reason": "invalid tree size",
+   "sigsum_verify": "reject"
+  },
+  {
+   "name": "size-zero",
+   "checkpoint_text": "4gartha.test/anchor/1\n7\n/1Qq976I6MdzQbEmvJcEFm3FtOQvTrNuhzYzUFsDKqM=\n",
+   "anchor_public_key": "19be235bc9531b7727c7925b7e254197bcb9a0dde2faf3663e51f52ded91a192",
+   "policy": "# 4gartha.anchor-policy/1 TEST POLICY: every key here is public test data\nanchor-origin 4gartha.test/anchor/1\nanchor-key 19be235bc9531b7727c7925b7e254197bcb9a0dde2faf3663e51f52ded91a192\nlog 3ee73ce2f3beb6d902d574911947b6b3c92ec843736452a8ce74712011a658b9\nwitness w1 5a37d79e6e6444e731eb08de4e063cdce75317dc004641a3b0fe100bd05c5179\nwitness w2 bdfbd9cd6b5011af98df9f50af75a4ccad14c1efced693503fe4b56766c0bb39\nwitness w3 e28443bb5022db638c93302a2e1b289a0dbd9905c0da755c943a6c747f5bdd64\ngroup quorum-rule 2 w1 w2 w3\nquorum quorum-rule\n",
+   "proof": "version=2\nlog=ed71c271c7208e35fa0400c1a9beefd6800e51beabb626bf0dbef0b263dbe607\nleaf=212803634ce4a3bfd438461c3d205b1c3afff03ae9719f83e71b1dd77831fbbd 18f834c41a72e0c19ecd1198cdedc7091a721646a931be92f2864e081858b3a30ecab655901b2da6769f22170e11848a94603d08750f1de1f37605b8e2a5bd0d\n\nsize=0\nroot_hash=6f6e084c30c4f006cd2d160b42ddf2da56a918a2ed8ef2eb3fbbfb941de4bd3b\nsignature=6cfcc9af7a3cf288d48924f6346c2b1f04c38a5e312cdd76b84d4336cd8ecf63cdb6643fe93fa849861549ae3fb70ba8a14f1a4b5c600345326198ea95594702\ncosignature=3561cde0dfdea4ab7abde61f5b7743f23790560d8a31b929fd41f3f51ca78b7d 1767225900 81aec48787753110963ced5199b192f528e59686103aa85831fe6123d28a56f9524759b1ce3d44bbc3cf35bbf980b04fa5abbc147dadbd2e397cc6ececa17407\ncosignature=eb4f10ca61922df2ac8a3c94a40b88650b5ebd39117c0da27541e9dc25e5e31e 1767225700 db91d70224a3d270cd397d271add4facc8787494cd779e5f309d0f4e70cf780353d77061e7ad254d326c2234b6369b0090a29e6d0cdc0618eba8b3a8bc07d30c\ncosignature=c746ca6d2e2e6e5c6e8365327390e8fe2d4aa717bd45cfee25347995689ec78e 1767225800 359577c6598a65866e51233e02790487005547fb320a118ef1a3180007af59ec10614dfae082f313a6e3e63cab8932187617c3c33ef7e4efb2148a83130cce04\n",
+   "expect": "FAIL",
+   "anchored_no_later_than": null,
+   "reason": "tree size is 0",
+   "sigsum_verify": "reject"
+  },
+  {
+   "name": "tree-size-1-with-inclusion-part",
+   "checkpoint_text": "4gartha.test/anchor/1\n7\n/1Qq976I6MdzQbEmvJcEFm3FtOQvTrNuhzYzUFsDKqM=\n",
+   "anchor_public_key": "19be235bc9531b7727c7925b7e254197bcb9a0dde2faf3663e51f52ded91a192",
+   "policy": "# 4gartha.anchor-policy/1 TEST POLICY: every key here is public test data\nanchor-origin 4gartha.test/anchor/1\nanchor-key 19be235bc9531b7727c7925b7e254197bcb9a0dde2faf3663e51f52ded91a192\nlog 3ee73ce2f3beb6d902d574911947b6b3c92ec843736452a8ce74712011a658b9\nwitness w1 5a37d79e6e6444e731eb08de4e063cdce75317dc004641a3b0fe100bd05c5179\nwitness w2 bdfbd9cd6b5011af98df9f50af75a4ccad14c1efced693503fe4b56766c0bb39\nwitness w3 e28443bb5022db638c93302a2e1b289a0dbd9905c0da755c943a6c747f5bdd64\ngroup quorum-rule 2 w1 w2 w3\nquorum quorum-rule\n",
+   "proof": "version=2\nlog=ed71c271c7208e35fa0400c1a9beefd6800e51beabb626bf0dbef0b263dbe607\nleaf=212803634ce4a3bfd438461c3d205b1c3afff03ae9719f83e71b1dd77831fbbd 18f834c41a72e0c19ecd1198cdedc7091a721646a931be92f2864e081858b3a30ecab655901b2da6769f22170e11848a94603d08750f1de1f37605b8e2a5bd0d\n\nsize=1\nroot_hash=1f1a4c05c8de76de408e18c0be940dd0e5be7b5025ff886266fa6708d66dbb19\nsignature=a9bdc8bd5fbf611c9a3503b06a01eee8d17a99a0ede1538f9840be47a70b95927ad8bdc2fac24aa811deb9153cace72cdaa9e5420131e42413211dd5b379430d\ncosignature=3561cde0dfdea4ab7abde61f5b7743f23790560d8a31b929fd41f3f51ca78b7d 1767225610 776d9ea7e73c272e62705091c5784bec0c8a6539119ffe150230123c09748c1efa05faa098b566d3c9eb577badc272c31beaebb71e0f439c1745fac17eb36c05\ncosignature=eb4f10ca61922df2ac8a3c94a40b88650b5ebd39117c0da27541e9dc25e5e31e 1767225620 0acaef7b59d975f8b7e2308cda461f8bfbf0ed5bf850eed8bc563270473e639e7c37311155f61dac6d6580a73705f112377c39d261eaf66b438e06ede0fdbe0e\n\nleaf_index=0\nnode_hash=0000000000000000000000000000000000000000000000000000000000000000\n",
+   "expect": "FAIL",
+   "anchored_no_later_than": null,
+   "reason": "must end after the tree head",
+   "sigsum_verify": "reject"
+  },
+  {
+   "name": "missing-blank-line-before-inclusion",
+   "checkpoint_text": "4gartha.test/anchor/1\n7\n/1Qq976I6MdzQbEmvJcEFm3FtOQvTrNuhzYzUFsDKqM=\n",
+   "anchor_public_key": "19be235bc9531b7727c7925b7e254197bcb9a0dde2faf3663e51f52ded91a192",
+   "policy": "# 4gartha.anchor-policy/1 TEST POLICY: every key here is public test data\nanchor-origin 4gartha.test/anchor/1\nanchor-key 19be235bc9531b7727c7925b7e254197bcb9a0dde2faf3663e51f52ded91a192\nlog 3ee73ce2f3beb6d902d574911947b6b3c92ec843736452a8ce74712011a658b9\nwitness w1 5a37d79e6e6444e731eb08de4e063cdce75317dc004641a3b0fe100bd05c5179\nwitness w2 bdfbd9cd6b5011af98df9f50af75a4ccad14c1efced693503fe4b56766c0bb39\nwitness w3 e28443bb5022db638c93302a2e1b289a0dbd9905c0da755c943a6c747f5bdd64\ngroup quorum-rule 2 w1 w2 w3\nquorum quorum-rule\n",
+   "proof": "version=2\nlog=ed71c271c7208e35fa0400c1a9beefd6800e51beabb626bf0dbef0b263dbe607\nleaf=212803634ce4a3bfd438461c3d205b1c3afff03ae9719f83e71b1dd77831fbbd 18f834c41a72e0c19ecd1198cdedc7091a721646a931be92f2864e081858b3a30ecab655901b2da6769f22170e11848a94603d08750f1de1f37605b8e2a5bd0d\n\nsize=9\nroot_hash=6f6e084c30c4f006cd2d160b42ddf2da56a918a2ed8ef2eb3fbbfb941de4bd3b\nsignature=6cfcc9af7a3cf288d48924f6346c2b1f04c38a5e312cdd76b84d4336cd8ecf63cdb6643fe93fa849861549ae3fb70ba8a14f1a4b5c600345326198ea95594702\ncosignature=3561cde0dfdea4ab7abde61f5b7743f23790560d8a31b929fd41f3f51ca78b7d 1767225900 81aec48787753110963ced5199b192f528e59686103aa85831fe6123d28a56f9524759b1ce3d44bbc3cf35bbf980b04fa5abbc147dadbd2e397cc6ececa17407\ncosignature=eb4f10ca61922df2ac8a3c94a40b88650b5ebd39117c0da27541e9dc25e5e31e 1767225700 db91d70224a3d270cd397d271add4facc8787494cd779e5f309d0f4e70cf780353d77061e7ad254d326c2234b6369b0090a29e6d0cdc0618eba8b3a8bc07d30c\ncosignature=c746ca6d2e2e6e5c6e8365327390e8fe2d4aa717bd45cfee25347995689ec78e 1767225800 359577c6598a65866e51233e02790487005547fb320a118ef1a3180007af59ec10614dfae082f313a6e3e63cab8932187617c3c33ef7e4efb2148a83130cce04\nleaf_index=5\nnode_hash=a9305d980f362d449d9197da39861166c234e5aec4d547244c8f0cd3ab53fa75\nnode_hash=7d761e19fe919d9e29a7174c2081f785ef8f5cf4e6442c028e907fd2195e302d\nnode_hash=41521768cf9b8d920a6a78b719d4f5f2f1a9829bc90bd4722e7815c67cc716ed\nnode_hash=9820138ee5dafeafb594feb182f062e14069e1304267a56e1e4c2f4a0c528425\n",
+   "expect": "FAIL",
+   "anchored_no_later_than": null,
+   "reason": "expected",
+   "sigsum_verify": "reject"
+  },
+  {
+   "name": "missing-final-newline",
+   "checkpoint_text": "4gartha.test/anchor/1\n7\n/1Qq976I6MdzQbEmvJcEFm3FtOQvTrNuhzYzUFsDKqM=\n",
+   "anchor_public_key": "19be235bc9531b7727c7925b7e254197bcb9a0dde2faf3663e51f52ded91a192",
+   "policy": "# 4gartha.anchor-policy/1 TEST POLICY: every key here is public test data\nanchor-origin 4gartha.test/anchor/1\nanchor-key 19be235bc9531b7727c7925b7e254197bcb9a0dde2faf3663e51f52ded91a192\nlog 3ee73ce2f3beb6d902d574911947b6b3c92ec843736452a8ce74712011a658b9\nwitness w1 5a37d79e6e6444e731eb08de4e063cdce75317dc004641a3b0fe100bd05c5179\nwitness w2 bdfbd9cd6b5011af98df9f50af75a4ccad14c1efced693503fe4b56766c0bb39\nwitness w3 e28443bb5022db638c93302a2e1b289a0dbd9905c0da755c943a6c747f5bdd64\ngroup quorum-rule 2 w1 w2 w3\nquorum quorum-rule\n",
+   "proof": "version=2\nlog=ed71c271c7208e35fa0400c1a9beefd6800e51beabb626bf0dbef0b263dbe607\nleaf=212803634ce4a3bfd438461c3d205b1c3afff03ae9719f83e71b1dd77831fbbd 18f834c41a72e0c19ecd1198cdedc7091a721646a931be92f2864e081858b3a30ecab655901b2da6769f22170e11848a94603d08750f1de1f37605b8e2a5bd0d\n\nsize=9\nroot_hash=6f6e084c30c4f006cd2d160b42ddf2da56a918a2ed8ef2eb3fbbfb941de4bd3b\nsignature=6cfcc9af7a3cf288d48924f6346c2b1f04c38a5e312cdd76b84d4336cd8ecf63cdb6643fe93fa849861549ae3fb70ba8a14f1a4b5c600345326198ea95594702\ncosignature=3561cde0dfdea4ab7abde61f5b7743f23790560d8a31b929fd41f3f51ca78b7d 1767225900 81aec48787753110963ced5199b192f528e59686103aa85831fe6123d28a56f9524759b1ce3d44bbc3cf35bbf980b04fa5abbc147dadbd2e397cc6ececa17407\ncosignature=eb4f10ca61922df2ac8a3c94a40b88650b5ebd39117c0da27541e9dc25e5e31e 1767225700 db91d70224a3d270cd397d271add4facc8787494cd779e5f309d0f4e70cf780353d77061e7ad254d326c2234b6369b0090a29e6d0cdc0618eba8b3a8bc07d30c\ncosignature=c746ca6d2e2e6e5c6e8365327390e8fe2d4aa717bd45cfee25347995689ec78e 1767225800 359577c6598a65866e51233e02790487005547fb320a118ef1a3180007af59ec10614dfae082f313a6e3e63cab8932187617c3c33ef7e4efb2148a83130cce04\n\nleaf_index=5\nnode_hash=a9305d980f362d449d9197da39861166c234e5aec4d547244c8f0cd3ab53fa75\nnode_hash=7d761e19fe919d9e29a7174c2081f785ef8f5cf4e6442c028e907fd2195e302d\nnode_hash=41521768cf9b8d920a6a78b719d4f5f2f1a9829bc90bd4722e7815c67cc716ed\nnode_hash=9820138ee5dafeafb594feb182f062e14069e1304267a56e1e4c2f4a0c528425",
+   "expect": "FAIL",
+   "anchored_no_later_than": null,
+   "reason": "does not end with a newline",
+   "sigsum_verify": "reject"
+  },
+  {
+   "name": "trailing-empty-line",
+   "checkpoint_text": "4gartha.test/anchor/1\n7\n/1Qq976I6MdzQbEmvJcEFm3FtOQvTrNuhzYzUFsDKqM=\n",
+   "anchor_public_key": "19be235bc9531b7727c7925b7e254197bcb9a0dde2faf3663e51f52ded91a192",
+   "policy": "# 4gartha.anchor-policy/1 TEST POLICY: every key here is public test data\nanchor-origin 4gartha.test/anchor/1\nanchor-key 19be235bc9531b7727c7925b7e254197bcb9a0dde2faf3663e51f52ded91a192\nlog 3ee73ce2f3beb6d902d574911947b6b3c92ec843736452a8ce74712011a658b9\nwitness w1 5a37d79e6e6444e731eb08de4e063cdce75317dc004641a3b0fe100bd05c5179\nwitness w2 bdfbd9cd6b5011af98df9f50af75a4ccad14c1efced693503fe4b56766c0bb39\nwitness w3 e28443bb5022db638c93302a2e1b289a0dbd9905c0da755c943a6c747f5bdd64\ngroup quorum-rule 2 w1 w2 w3\nquorum quorum-rule\n",
+   "proof": "version=2\nlog=ed71c271c7208e35fa0400c1a9beefd6800e51beabb626bf0dbef0b263dbe607\nleaf=212803634ce4a3bfd438461c3d205b1c3afff03ae9719f83e71b1dd77831fbbd 18f834c41a72e0c19ecd1198cdedc7091a721646a931be92f2864e081858b3a30ecab655901b2da6769f22170e11848a94603d08750f1de1f37605b8e2a5bd0d\n\nsize=9\nroot_hash=6f6e084c30c4f006cd2d160b42ddf2da56a918a2ed8ef2eb3fbbfb941de4bd3b\nsignature=6cfcc9af7a3cf288d48924f6346c2b1f04c38a5e312cdd76b84d4336cd8ecf63cdb6643fe93fa849861549ae3fb70ba8a14f1a4b5c600345326198ea95594702\ncosignature=3561cde0dfdea4ab7abde61f5b7743f23790560d8a31b929fd41f3f51ca78b7d 1767225900 81aec48787753110963ced5199b192f528e59686103aa85831fe6123d28a56f9524759b1ce3d44bbc3cf35bbf980b04fa5abbc147dadbd2e397cc6ececa17407\ncosignature=eb4f10ca61922df2ac8a3c94a40b88650b5ebd39117c0da27541e9dc25e5e31e 1767225700 db91d70224a3d270cd397d271add4facc8787494cd779e5f309d0f4e70cf780353d77061e7ad254d326c2234b6369b0090a29e6d0cdc0618eba8b3a8bc07d30c\ncosignature=c746ca6d2e2e6e5c6e8365327390e8fe2d4aa717bd45cfee25347995689ec78e 1767225800 359577c6598a65866e51233e02790487005547fb320a118ef1a3180007af59ec10614dfae082f313a6e3e63cab8932187617c3c33ef7e4efb2148a83130cce04\n\nleaf_index=5\nnode_hash=a9305d980f362d449d9197da39861166c234e5aec4d547244c8f0cd3ab53fa75\nnode_hash=7d761e19fe919d9e29a7174c2081f785ef8f5cf4e6442c028e907fd2195e302d\nnode_hash=41521768cf9b8d920a6a78b719d4f5f2f1a9829bc90bd4722e7815c67cc716ed\nnode_hash=9820138ee5dafeafb594feb182f062e14069e1304267a56e1e4c2f4a0c528425\n\n",
+   "expect": "FAIL",
+   "anchored_no_later_than": null,
+   "reason": "expected node_hash",
+   "sigsum_verify": "reject"
+  }
+ ],
+ "anchor_log": {
+  "policy": "# 4gartha.anchor-policy/1 TEST POLICY: every key here is public test data\nanchor-origin 4gartha.test/anchor/1\nanchor-key 19be235bc9531b7727c7925b7e254197bcb9a0dde2faf3663e51f52ded91a192\nlog 3ee73ce2f3beb6d902d574911947b6b3c92ec843736452a8ce74712011a658b9\nwitness w1 5a37d79e6e6444e731eb08de4e063cdce75317dc004641a3b0fe100bd05c5179\nwitness w2 bdfbd9cd6b5011af98df9f50af75a4ccad14c1efced693503fe4b56766c0bb39\nwitness w3 e28443bb5022db638c93302a2e1b289a0dbd9905c0da755c943a6c747f5bdd64\ngroup quorum-rule 2 w1 w2 w3\nquorum quorum-rule\n",
+  "batches": {
+   "000000000003": {
+    "leaves.json": "{\"previous_size\":0,\"protocol\":\"4gartha.anchor/1\",\"records\":[\"43f3f35ac8f953053184bb682fcda966fe6efd8eca9eacc803ec3ed1a0d4fcfa\",\"613419ef774485f0ed5c555c1369b8966e7f17757e6ef5f64bd0ed9199d26af9\",\"b67631b451ad9201db4745144e1bb530dc0559ae4a3cf773f1c72e1d4d4fa44c\"]}",
+    "checkpoint": "4gartha.test/anchor/1\n3\npej1J3F8FwiqsTVWKDOKhD+VKbggj4wzvfk8l+vjwHM=\n\n— 4gartha.test/anchor/1 T9o9sgY85u+Q+UlMi8fVf420Jt7hj83XPPGe+Z4Zrln+0vs2UO4XhGBVRuOnWSXflYEMPv9GEb/3w+mtJX7JhWQ1aQM=\n",
+    "sigsum.proof": "version=2\nlog=ed71c271c7208e35fa0400c1a9beefd6800e51beabb626bf0dbef0b263dbe607\nleaf=212803634ce4a3bfd438461c3d205b1c3afff03ae9719f83e71b1dd77831fbbd 9f616e4e952ac0d23e35d770abc7068c257ebc73e2e5b7139a02ec762cf2a67f72aa52037ffcd67aa1f24a379b5f00a19595f4a62fcb0b0f4931b0fb6926b600\n\nsize=4\nroot_hash=f230470b6bb272ab8d6ea84f8e4e50f1a657cfa03b74eb4fd501e41777a526c9\nsignature=0ba0a0623eea98c48b62d4440bcd8331901dbc85eeb41186057939844fa5155d9d0a8a6913e9b35715c6c8fa8fc0974dd7b6436973d1bd5ff144bf3ad5b9690d\ncosignature=3561cde0dfdea4ab7abde61f5b7743f23790560d8a31b929fd41f3f51ca78b7d 1767225650 f3c12533416e327492b1ac05b5c655bbe6da958eb41a45ba148ce1c12c7e8472647de68183cb30a8757490b912b368a0aedadd07547be7c82509d776c27c3a06\ncosignature=c746ca6d2e2e6e5c6e8365327390e8fe2d4aa717bd45cfee25347995689ec78e 1767225640 5b6ee4db24aee272bba5b60f543a90ce41a43fbe7d398ca2aa797a23491c944e157ba91cb6b0a95a1d00805237ed8e5925c113a1586ef73fb25c284cec50bc0b\n\nleaf_index=2\nnode_hash=9e7db3600caa008e84238b29603d8be67f77188286cb4c18ca94e3ac92400996\nnode_hash=ec1d2563d128cf5d685b91a94c980ce7501ce70a4e17859c140e0ae1df3cc08c\n"
+   },
+   "000000000005": {
+    "leaves.json": "{\"previous_size\":3,\"protocol\":\"4gartha.anchor/1\",\"records\":[\"ea9f9b1c5ce90f838d59ba10b04932df6420c67777463d4ee36843ff7074adf9\",\"fcd996370efc9ba74ae9ee3a3451c0f5b9ded3b581323c079e9e4f12ab8b6382\"]}",
+    "checkpoint": "4gartha.test/anchor/1\n5\ng8vEQ6/RgJQcwRuFa/Z9bDYxhDq7tC9gH8UeXhvToW0=\n\n— 4gartha.test/anchor/1 T9o9ssNHYroTb+jIJ9iuGrH4Vaw7c8EBeHiA+lX+FNbTEE6EdhHAVFIcJX8RR0x3OdF+Ci57amlZ+pFLqRroO7DTnAg=\n",
+    "sigsum.proof": "version=2\nlog=ed71c271c7208e35fa0400c1a9beefd6800e51beabb626bf0dbef0b263dbe607\nleaf=212803634ce4a3bfd438461c3d205b1c3afff03ae9719f83e71b1dd77831fbbd 6d1ab51bf74176392a8e7f12019d009eb979d942f0a8d27b7c5fe73e48a0a82738b47eba82897ee41ad7fda15c08bf71b7b59214bb365347e521c028768b9708\n\nsize=7\nroot_hash=c362e9490ff4a22319eb339cd3894ef386f21785fc18594187c0f053dbec1023\nsignature=00ab5e55e34be87a79edb71ec95d8f1f919cd17d7833a8593e1f65d7ba838804a85e62d59072895dc1bf4f01850701fbd184f70379003fd7713480c4d3c9ee04\ncosignature=3561cde0dfdea4ab7abde61f5b7743f23790560d8a31b929fd41f3f51ca78b7d 1767226500 69302aed23123d7c1ffe84059b433f6914419ffc4d9f293860c943fed43ffb6bb581854fbaeb0eaa26d9c8cf81e64be36d08a70650111920298a408724643103\ncosignature=eb4f10ca61922df2ac8a3c94a40b88650b5ebd39117c0da27541e9dc25e5e31e 1767226300 69431cee5b6b43873a922509ad04d11df2cde881c5d9231c9bb156fec0c216de56e1440fcc0491478e293f7bbc82af9cd953db1e671f9d3f9a2a03fade235602\ncosignature=c746ca6d2e2e6e5c6e8365327390e8fe2d4aa717bd45cfee25347995689ec78e 1767226400 9e84dbe66ace745e15db984df07cce1304b541b9d1519f1cfd50564d1ca68218351f192b77bd2d5af1f1a12751e06c8da783af3e8c52a26a8aef4424a0529a02\n\nleaf_index=4\nnode_hash=754d5b7bdc9863100975e7f4ef9814cc6c57260dda673982e8adf9505787db75\nnode_hash=9fcc630bbe9b06a2166f18875cbecea3c13c00d1db877a6fd1c97990218f4568\nnode_hash=f230470b6bb272ab8d6ea84f8e4e50f1a657cfa03b74eb4fd501e41777a526c9\n"
+   }
+  },
+  "anchored_no_later_than": {
+   "000000000003": 1767225650,
+   "000000000005": 1767226400
+  },
+  "records": [
+   "43f3f35ac8f953053184bb682fcda966fe6efd8eca9eacc803ec3ed1a0d4fcfa",
+   "613419ef774485f0ed5c555c1369b8966e7f17757e6ef5f64bd0ed9199d26af9",
+   "b67631b451ad9201db4745144e1bb530dc0559ae4a3cf773f1c72e1d4d4fa44c",
+   "ea9f9b1c5ce90f838d59ba10b04932df6420c67777463d4ee36843ff7074adf9",
+   "fcd996370efc9ba74ae9ee3a3451c0f5b9ded3b581323c079e9e4f12ab8b6382"
+  ]
+ }
+}

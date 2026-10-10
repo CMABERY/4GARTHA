@@ -91,6 +91,9 @@ def _is(got: str, want: str) -> str:
     return _FAIL_IS.format(got=got, want=want)
 
 
+_M49 = r"assert b\.note is not None and b\.body is not None"
+
+
 CATALOGUE: Tuple[Defect, ...] = (
     Defect("M1", "root replay reported as PASS", "src/ledger/verifier.py",
            'dv = Outcome(Status.NOT_APPLICABLE, "lineage contains only admission records',
@@ -116,21 +119,22 @@ CATALOGUE: Tuple[Defect, ...] = (
            ((_c("test_C4_changing_any_field_changes_the_record_id[derivation-env]"),
              r"changing \('inputs', 0, 'record'\) did not change the record ID \(record_id\)"),
             (_c("test_C9_record_id_vectors[derivation-with-environment]"), r"record_id"))),
-    Defect("M6", "governance reported as PASS", "src/ledger/verifier.py",
-           "o[Dimension.GOVERNANCE] = Outcome(Status.NOT_CHECKED, GOVERNANCE_NOT_IMPLEMENTED)",
-           "o[Dimension.GOVERNANCE] = Outcome(Status.PASS if lin.complete else Status.NOT_CHECKED, GOVERNANCE_NOT_IMPLEMENTED)",
+    Defect("M6", "governance reported as PASS without an anchor policy", "src/ledger/verifier.py",
+           "o[Dimension.GOVERNANCE] = Outcome(Status.NOT_CHECKED, GOVERNANCE_NO_POLICY)",
+           "o[Dimension.GOVERNANCE] = Outcome(Status.PASS if lin.complete else Status.NOT_CHECKED, GOVERNANCE_NO_POLICY)",
            ((_c("test_C6_repository_controls_do_not_produce_governance_assurance"), _is("PASS", "NOT_CHECKED")),
-            (_c("test_C8_reports_cover_every_dimension_and_v1_cannot_pass_unimplemented_ones"), r"governance must not PASS"))),
+            (_c("test_C8_reports_cover_every_dimension_and_unimplemented_ones_never_pass"), r"governance must not PASS"),
+            (_c("test_C10_no_policy_is_not_checked_even_with_valid_anchors"), _is("PASS", "NOT_CHECKED")))),
     Defect("M7", "unattested admission reported as authentic", "src/ledger/verifier.py",
            "        o[Dimension.AUTHENTICITY] = Outcome(\n            Status.NOT_CHECKED,\n            f\"{len(admissions)}",
            "        o[Dimension.AUTHENTICITY] = Outcome(\n            Status.PASS,\n            f\"{len(admissions)}",
            ((_c("test_C5_unsigned_admission_fails_authenticated_profile"), _is("PASS", "NOT_CHECKED")),
-            (_c("test_C8_reports_cover_every_dimension_and_v1_cannot_pass_unimplemented_ones"), r"authenticity must not PASS"))),
+            (_c("test_C8_reports_cover_every_dimension_and_unimplemented_ones_never_pass"), r"authenticity must not PASS"))),
     Defect("M8", "unsandboxed execution reported as safe", "src/ledger/verifier.py",
            "o[Dimension.EXECUTION_SAFETY] = Outcome(Status.FAIL,",
            "o[Dimension.EXECUTION_SAFETY] = Outcome(Status.PASS,",
            ((_c("test_C2_execution_is_never_reported_as_safe"), _is("PASS", "FAIL")),
-            (_c("test_C8_reports_cover_every_dimension_and_v1_cannot_pass_unimplemented_ones"), r"execution_safety must not PASS"))),
+            (_c("test_C8_reports_cover_every_dimension_and_unimplemented_ones_never_pass"), r"execution_safety must not PASS"))),
     Defect("M9", "record schema admits a runner argv", "src/ledger/record.schema.json",
            '"required": ["artifact", "runtime", "params"],\n          "properties": {',
            '"required": ["artifact", "runtime", "params"],\n          "properties": {"runner": {"type": "array"},',
@@ -245,6 +249,119 @@ CATALOGUE: Tuple[Defect, ...] = (
            '    except ZeroDivisionError as e:\n        return Execution("error", errors=(f"could not create a run directory: {e}",))',
            (("tests/test_verifier.py::test_unusable_workdir_is_a_typed_error", r"FileExistsError"),),
            targets=("tests/test_verifier.py",)),
+    # External anchoring (4gartha.anchor/1, C10). Each targets the only check
+    # that stands between the defect and a wrong governance result.
+    Defect("M33", "anchor policy read from the repository when none is supplied", "src/ledger/verifier.py",
+           "    if anchor_policy is None:\n        o[Dimension.GOVERNANCE]",
+           '    if anchor_policy is None and (repo_root / "anchor-policy").is_file():\n'
+           '        anchor_policy = anchor.load_policy(repo_root / "anchor-policy")\n'
+           "    if anchor_policy is None:\n        o[Dimension.GOVERNANCE]",
+           ((_c("test_C10_policy_in_the_repository_is_never_read"), _is("PASS", "NOT_CHECKED")),)),
+    Defect("M34", "checkpoint root not compared with the root recomputed from leaves.json", "src/ledger/anchor.py",
+           "                if b.body.root != root:", "                if False:",
+           ((_c("test_C10_root_mismatch_fails_even_when_signed_by_the_trusted_key"), _is("PASS", "FAIL")),)),
+    Defect("M35", "witness quorum ignored", "src/ledger/anchor.py",
+           "    r.time = quorum_time(policy.quorum, r.verified)",
+           "    r.time = min(r.verified.values(), default=None)",
+           ((_c("test_C10_below_quorum_is_not_checked"), _is("PASS", "NOT_CHECKED")),
+            (_c("test_C10_sigsum_proof_vectors[below-quorum]"), r"assert 'PASS' == 'NOT_CHECKED'"))),
+    Defect("M36", "time bound taken from the earliest cosignature", "src/ledger/anchor.py",
+           "    return times[node.threshold - 1] if len(times) >= node.threshold else None",
+           "    return times[0] if len(times) >= node.threshold else None",
+           ((_c("test_C10_valid_anchoring_passes_and_reports_the_quorum_time_bound"), r"assert 1767225700 == 1767225800"),
+            (_c("test_C10_sigsum_proof_vectors[valid]"), r"assert 1767225700 == 1767225800"))),
+    Defect("M37", "missing anchored record not detected", "src/ledger/anchor.py",
+           '            if loaded.problem in ("missing", "invalid"):', '            if loaded.problem in ("invalid",):',
+           ((_c("test_C10_missing_anchored_record_fails"), _is("PASS", "FAIL")),)),
+    Defect("M38", "checkpoint signature not verified once its key name and ID match", "src/ledger/anchor.py",
+           "    if crypto and not ed25519_verify(public_key, note.text, mine[0].signature):", "    if False:",
+           ((_c("test_C10_tampered_evidence_fails[wrong-key-signature]"), _is("PASS", "FAIL")),
+            (_c("test_C10_checkpoint_vectors[key-id-collision]"), r"assert 'trusted' == 'invalid'"))),
+    Defect("M39", "invalid cosignature by a policy witness skipped when the quorum is met anyway", "src/ledger/anchor.py",
+           '            r.fail.append(f"cosignature by policy witness {w.name!r} does not verify")', "            pass",
+           ((_c("test_C10_tampered_evidence_fails[cosignature-quorum-otherwise-met]"), _is("PASS", "FAIL")),
+            (_c("test_C10_tampered_evidence_fails[backdated-cosignature]"), _is("PASS", "FAIL")),
+            (_c("test_C10_sigsum_proof_vectors[tampered-cosignature-quorum-otherwise-met]"), r"assert 'PASS' == 'FAIL'"))),
+    Defect("M40", "Sigsum checksum computed as the message itself (single hash)", "src/ledger/anchor.py",
+           '    """What the log stores: checksum = SHA-256(message)."""\n    return hashlib.sha256(message).digest()',
+           '    """What the log stores: checksum = SHA-256(message)."""\n    return message',
+           ((_c("test_C10_sigsum_proof_vectors[valid]"), r"assert 'FAIL' == 'PASS'"),)),
+    Defect("M41", "Sigsum inclusion path not checked", "src/ledger/anchor.py",
+           "    return verify_inclusion(lh, p.leaf_index, p.size, p.root, p.path)", "    return None",
+           ((_c("test_C10_tampered_evidence_fails[inclusion-path]"), _is("PASS", "FAIL")),
+            (_c("test_C10_sigsum_proof_vectors[tampered-inclusion-path]"), r"assert 'PASS' == 'FAIL'"))),
+    Defect("M42", "append-only check omits ledger/anchors", "tools/check_append_only.py",
+           '"ledger/nodes/", "ledger/anchors/")', '"ledger/nodes/")',
+           ((_c("test_C10_anchor_files_are_add_only"), r"assert \(0 == 2\)"),)),
+    Defect("M43", "RFC 6962 leaf hash without its 0x00 prefix", "src/ledger/anchor.py",
+           '    return hashlib.sha256(b"\\x00" + data).digest()', "    return hashlib.sha256(data).digest()",
+           ((_c("test_C10_rfc6962_known_answers"), r"6e340b9cffb37a989ca544e6bb780a2c78901d3fb33738768511a30617afa01d"),
+            (_c("test_C10_anchor_tree_vectors"), r"assert \["))),
+    Defect("M44", "governance evaluated although integrity did not pass", "src/ledger/verifier.py",
+           "          or o[Dimension.PROVENANCE_INTEGRITY].status is not Status.PASS):\n        o[Dimension.GOVERNANCE] = Outcome(",
+           "          or o[Dimension.PROVENANCE_INTEGRITY].status is not Status.PASS) and False:\n        o[Dimension.GOVERNANCE] = Outcome(",
+           ((_c("test_C10_integrity_failure_prevents_governance"), r"assert \(" + _is("PASS", "NOT_CHECKED")[len("assert "):]),)),
+    Defect("M45", "record gate admits any path under ledger/anchors", "tools/verify_new_records.py",
+           "                if ANCHOR_PATH_RE.fullmatch(p) is None:", "                if False:",
+           ((_c("test_C10_record_gate_admits_only_anchor_batch_paths[ledger/anchors/anchor-policy-False]"), r"assert \(0 == 2\)"),)),
+    Defect("M46", "batches accepted without checking contiguity", "src/ledger/anchor.py",
+           "            if b.previous_size != expected:", "            if False:",
+           ((_c("test_C10_a_gap_between_batches_fails_even_when_roots_match"), _is("PASS", "FAIL")),)),
+    # Defects found in implementation review of PR #41 (anchoring phase 1),
+    # re-planted in their original form. M47 and M48 need a Python that limits
+    # int() digits (3.10.7+), as the defects themselves do.
+    Defect("M47", "anchor decimals converted with int() before their length is bounded", "src/ledger/anchor.py",
+           "    if len(text) > _MAX_DECIMAL_DIGITS or _DECIMAL_RE.fullmatch(text) is None:",
+           "    if _DECIMAL_RE.fullmatch(text) is None:",
+           ((_c("test_C10_oversized_decimals_fail_rather_than_crash[checkpoint-tree-size]"),
+             r"Exceeds the limit \(\d+ digits\) for integer string conversion"),
+            (_c("test_C10_oversized_decimals_fail_rather_than_crash[proof-version]"),
+             r"Exceeds the limit \(\d+ digits\) for integer string conversion"))),
+    Defect("M48", "policy threshold converted with int() before its length is bounded", "src/ledger/anchor.py",
+           "                k = _decimal(k_text)   # bounded before conversion",
+           "                k = int(k_text)",
+           (("tests/test_anchor.py::test_policy_threshold_is_bounded_before_conversion",
+             r"Exceeds the limit \(\d+ digits\) for integer string conversion"),),
+           targets=("tests/test_anchor.py",)),
+    Defect("M49", "checkpoint trust assumes the checkpoint was read", "src/ledger/anchor.py",
+           "    fail, nc = list(b.fail), []\n",
+           "    assert b.note is not None and b.body is not None\n    fail, nc = list(b.fail), []\n",
+           # The re-planted line, as printed in the CLI's traceback and in pytest's.
+           ((_c("test_C10_unreadable_anchor_files_are_errors[checkpoint]"), _M49),
+            (_c("test_C10_unreadable_anchor_files_are_errors[batch-directory]"), _M49),
+            (_c("test_C10_a_contradiction_outranks_an_unreadable_file[other-checkpoint]"), _M49))),
+    Defect("M50", "UTC formatting limited to the platform's time range", "src/ledger/anchor.py",
+           "    if not 0 <= timestamp <= MAX_UTC_TIMESTAMP:\n        return None\n"
+           '    return (_EPOCH + _dt.timedelta(seconds=timestamp)).strftime("%Y-%m-%dT%H:%M:%SZ")',
+           '    return _dt.datetime.fromtimestamp(timestamp, _dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")',
+           ((_c("test_C10_a_time_bound_past_the_utc_calendar_is_reported_as_the_integer"), r", in utc\b"),)),
+    Defect("M51", "whole-log trust reports a read error before a known contradiction", "src/ledger/anchor.py",
+           "    failed = _log_fail_or_error(a)\n    if failed is not None:\n        return failed\n"
+           "    if a.policy is None:",
+           "    integ = integrity_outcome(a)\n    if integ.status in (Status.FAIL, Status.ERROR):\n"
+           '        return Outcome(integ.status, "anchor log integrity did not pass", integ.problems)\n'
+           "    failed = _log_fail_or_error(a)\n    if failed is not None:\n        return failed\n"
+           "    if a.policy is None:",
+           ((_c("test_C10_a_contradiction_outranks_an_unreadable_file[own-proof]"), _is("ERROR", "FAIL")),
+            (_c("test_C10_a_contradiction_outranks_an_unreadable_file[other-checkpoint]"), _is("ERROR", "FAIL")))),
+    # Found in the follow-up review: partial audits.
+    Defect("M52", "structural checks abandoned when any batch is not sound", "src/ledger/anchor.py",
+           "    tree = Tree()\n    prefix: Optional[Cause] = None",
+           # The original early return, for a non-empty log (on an empty one it skipped nothing).
+           "    if a.batches and not all(b.sound for b in a.batches):\n"
+           "        if not a.fail and not a.error:\n"
+           '            a.fail.append("anchor log is malformed")\n'
+           "        return\n"
+           "    tree = Tree()\n    prefix: Optional[Cause] = None",
+           tuple((_c(f"test_C10_a_partial_audit_fails_on_a_contradiction_in_what_it_read[{case}]"),
+                  r"assert \('ERROR', 'ERROR'\) == \('FAIL', 'FAIL'\)")
+                 for case in ("root-proof", "root-leaves", "gap-leaves"))),
+    Defect("M53", "checkpoint PASS inferred from the absence of errors", "src/ledger/anchor.py",
+           "    structure = _worst(b.checks.get(c, Status.NOT_CHECKED) for c in BATCH_CHECKS)",
+           "    structure = Status.FAIL if b.fail else Status.ERROR if b.errors else Status.PASS",
+           tuple((_c(f"test_C10_a_partial_audit_does_not_conclude_past_what_it_could_not_read[{case}]"),
+                  r"At index 1 diff: <Status\.PASS: 'PASS'> != <Status\.ERROR: 'ERROR'>")
+                 for case in ("correct-leaves", "wrong-leaves"))),
 )
 
 
