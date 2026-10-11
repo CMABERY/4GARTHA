@@ -1201,6 +1201,8 @@ def test_C10_a_failure_lists_checkpoint_signature_failures_found_with_it(tmp_pat
         assert (governance["status"], proc.returncode) == ("FAIL", code), proc.stderr
         # Each listed once: integrity's own problem, then the signature failure.
         assert governance["problems"] == [structural, f"checkpoint {A.batch_name(s1)}: {forged}"], governance
+        assert governance["detail"] == ("anchor log: 1 problem(s) in the anchor log; "
+                                        "1 problem(s) with checkpoint evidence"), governance
 
 
 def _unexpected_file(root: Path, size: int) -> None:

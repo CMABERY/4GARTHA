@@ -396,8 +396,8 @@ CATALOGUE: Tuple[Defect, ...] = (
            ((_c("test_C10_quorum_witnesses_are_only_those_that_met_the_quorum"),
              r"assert \['w2', 'w3', 'w4'\] == \['w2', 'w3'\]"),)),
     Defect("M61", "a checkpoint signature failure left out of a FAIL that integrity also reports", "src/ledger/anchor.py",
-           "                       integ.problems + tuple(p for p in evidence if p not in integ.problems))\n",
-           "                       integ.problems)\n",
+           "        return Outcome(Status.FAIL, detail, integ.problems + tuple(evidence))\n",
+           "        return Outcome(Status.FAIL, detail, integ.problems)\n",
            ((_c("test_C10_a_failure_lists_checkpoint_signature_failures_found_with_it"), r"assert \[\]"),)),
 )
 

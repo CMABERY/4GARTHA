@@ -1390,8 +1390,11 @@ def _log_fail_or_error(a: Audit) -> Optional[Outcome]:
         # Integrity checks no signature, so a signature failure under the policy
         # found in the same run is listed as well: no contradiction is left out.
         evidence = [f"checkpoint {batch_name(t.size)}: {r}" for t in failing for r in t.evidence_fail]
-        return Outcome(Status.FAIL, f"anchor log: {integ.detail}",
-                       integ.problems + tuple(p for p in evidence if p not in integ.problems))
+        evidence = [p for p in evidence if p not in integ.problems]
+        detail = f"anchor log: {integ.detail}"
+        if evidence:
+            detail += f"; {len(evidence)} problem(s) with checkpoint evidence"
+        return Outcome(Status.FAIL, detail, integ.problems + tuple(evidence))
     if failing:
         fails = [f"checkpoint {batch_name(t.size)}: {r}" for t in failing for r in t.reasons]
         listed = {r for t in failing for r in t.reasons}
