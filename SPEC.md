@@ -208,11 +208,12 @@ log order. It contains exactly the following, all regular files (no symlinks, no
     batch's size.
   - `records` holds 1 to 65,536 record IDs, strictly ascending.
   - The directory's size is *P* plus the number of records.
-- **`checkpoint`** (required). A C2SP signed note, UTF-8, with no control characters other than
-  newline.
+- **`checkpoint`** (required). A C2SP signed note, UTF-8, with no ASCII control characters
+  (those below U+0020) other than newline, as signed-note v1.1.0 defines them. U+0080 to U+009F
+  are not refused as control characters.
   - **Text.** Exactly three lines, each ending in `\n`:
-    - the origin: 1 to 255 bytes, with no spaces, `+` or control characters, and the same in
-      every checkpoint of the log
+    - the origin: 1 to 255 bytes, with no spaces (U+0085 is one), `+`, ASCII control characters
+      or DEL (U+007F), and the same in every checkpoint of the log
     - the tree size in decimal, without leading zeros
     - the root at that size, in canonical, padded standard base64
 

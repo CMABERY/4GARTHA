@@ -682,6 +682,14 @@ class AnchorPolicy:
         return sigsum_key_hash(self.anchor_key)
 
 
+def quorum_members(node: Union[Group, Witness]) -> frozenset:
+    """Key hashes of the witnesses in ``node``'s tree: the only witnesses whose
+    cosignatures can count toward it."""
+    if isinstance(node, Witness):
+        return frozenset([node.key_hash])
+    return frozenset().union(*(quorum_members(m) for m in node.members))
+
+
 def quorum_time(node: Union[Group, Witness], verified: Mapping[bytes, int]) -> Optional[int]:
     """Earliest time t such that the cosignatures with timestamp <= t satisfy
     ``node``; None if the verified cosignatures never satisfy it. For a group of
@@ -919,7 +927,10 @@ class CheckpointTrust:
     reasons: Tuple[str, ...] = ()
     time: Optional[int] = None
     log_key_hash: Optional[bytes] = None
-    witnesses: Tuple[str, ...] = ()   # policy witnesses that cosigned no later than time
+    witnesses: Tuple[str, ...] = ()   # witnesses in the policy's quorum that cosigned no later than time
+    # Signatures by keys the policy trusts that do not verify (step 4). Structural
+    # failures are reported by integrity, which checks no signature.
+    evidence_fail: Tuple[str, ...] = ()
 
     def to_dict(self) -> Dict[str, object]:
         return {
@@ -1320,12 +1331,16 @@ def _checkpoint_trust(b: Batch, policy: AnchorPolicy, crypto: bool) -> Checkpoin
                 if not crypto:
                     nc.append(f"Ed25519 verification is not installed ({INSTALL_HINT}); no signature was checked")
     if fail or structure is Status.FAIL:
-        return CheckpointTrust(b.size, Status.FAIL, tuple(fail + b.errors + b.blocked + nc))
+        return CheckpointTrust(b.size, Status.FAIL, tuple(fail + b.errors + b.blocked + nc),
+                               evidence_fail=tuple(fail[len(b.fail):]))
     if b.errors or structure is Status.ERROR:
         return CheckpointTrust(b.size, Status.ERROR, tuple(b.errors + b.blocked + nc))
     if structure is not Status.PASS or nc or pt is None or pt.time is None:
         return CheckpointTrust(b.size, Status.NOT_CHECKED, tuple(b.blocked + nc))
-    names = tuple(sorted(policy.witnesses[kh].name for kh, ts in pt.verified.items() if ts <= pt.time))
+    # The witnesses that met the quorum: in its tree, with a valid cosignature no
+    # later than T. A policy witness outside the quorum counts for nothing.
+    names = tuple(sorted(policy.witnesses[kh].name for kh, ts in pt.verified.items()
+                         if ts <= pt.time and kh in quorum_members(policy.quorum)))
     return CheckpointTrust(b.size, Status.PASS, (), pt.time, b.proof.log_key_hash, names)  # type: ignore[union-attr]
 
 
@@ -1370,9 +1385,13 @@ def _log_fail_or_error(a: Audit) -> Optional[Outcome]:
     policy, outranks a file that could not be read. None only if integrity
     passed (or the log is empty) and no checkpoint FAILs."""
     integ = integrity_outcome(a)
-    if integ.status is Status.FAIL:
-        return Outcome(Status.FAIL, f"anchor log: {integ.detail}", integ.problems)
     failing = [t for t in a.trust if t.status is Status.FAIL]
+    if integ.status is Status.FAIL:
+        # Integrity checks no signature, so a signature failure under the policy
+        # found in the same run is listed as well: no contradiction is left out.
+        evidence = [f"checkpoint {batch_name(t.size)}: {r}" for t in failing for r in t.evidence_fail]
+        return Outcome(Status.FAIL, f"anchor log: {integ.detail}",
+                       integ.problems + tuple(p for p in evidence if p not in integ.problems))
     if failing:
         fails = [f"checkpoint {batch_name(t.size)}: {r}" for t in failing for r in t.reasons]
         listed = {r for t in failing for r in t.reasons}

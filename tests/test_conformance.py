@@ -874,6 +874,35 @@ def test_C10_the_smallest_trusted_covering_checkpoint_is_used(tmp_path: Path) ->
 
 
 @needs_ed25519
+def test_C10_quorum_witnesses_are_only_those_that_met_the_quorum(tmp_path: Path) -> None:
+    # ASSURANCE.md 5.7 Results: the evidence names the witnesses that met the
+    # quorum, which are the quorum's witnesses with a valid cosignature no later
+    # than T. w4 is a policy witness in no quorum group: its valid cosignature is
+    # the earliest, and counts for nothing. w1's is after T.
+    root = init_repo(tmp_path / "repo")
+    a = admit(root, b"evidence")
+    size = anchor_batch(root)
+    log_batch(root, size, cosigners=(("w4", T0 + 50), ("w2", T0 + 100), ("w3", T0 + 200), ("w1", T0 + 300)))
+    four = dict(witnesses=("w1", "w2", "w3", "w4"))
+    oc = _gov(check(root, a, anchor_policy=policy(**four)))
+    assert oc.status is S.PASS, oc
+    assert oc.evidence["anchored_no_later_than"] == T0 + 200
+    assert oc.evidence["quorum_witnesses"] == ["w2", "w3"]
+    pol = write_policy(tmp_path / "verifier" / "anchor-policy", **four)
+    doc = json.loads(run_cli(root, "anchor", "verify", "--anchor-policy", str(pol), "--json").stdout)
+    assert [(c["status"], c["witnesses"]) for c in doc["checkpoints"]] == [("PASS", ["w2", "w3"])]
+    # Nested groups: every witness in the quorum's tree counts, w5 (in no group) never.
+    nested = dict(witnesses=("w1", "w2", "w3", "w4", "w5"), quorum="both",
+                  groups=("group org-a 2 w1 w2 w3", "group org-b any w4", "group both all org-a org-b"))
+    log_batch(root, size, cosigners=(("w5", T0 + 5), ("w1", T0 + 10), ("w4", T0 + 20), ("w2", T0 + 30),
+                                     ("w3", T0 + 400)))
+    oc = _gov(check(root, a, anchor_policy=policy(**nested)))
+    assert oc.status is S.PASS, oc
+    assert oc.evidence["anchored_no_later_than"] == T0 + 30
+    assert oc.evidence["quorum_witnesses"] == ["w1", "w2", "w4"]
+
+
+@needs_ed25519
 def test_C10_omitting_a_cosignature_never_lowers_the_time_bound(tmp_path: Path) -> None:
     root = init_repo(tmp_path / "repo")
     a = admit(root, b"evidence")
@@ -1003,6 +1032,71 @@ def test_C10_duplicate_leaf_fails(tmp_path: Path) -> None:
     assert any(f"record {a} was already anchored" in p for p in oc.problems)
 
 
+@needs_ed25519
+def test_C10_checkpoints_under_two_origins_fail(tmp_path: Path) -> None:
+    # SPEC.md "Batches": the origin is the same in every checkpoint of the log.
+    # Batch 1 is under the policy's origin, signed and logged. Batch 2 is under
+    # another origin, signed by the same anchor key and logged. Under the policy
+    # batch 2 alone is only NOT_CHECKED (another origin), and batch 1 covers the
+    # target, so the one-origin check is all that stands between this log and a
+    # governance PASS.
+    root = init_repo(tmp_path / "repo")
+    a = admit(root, b"first")
+    s1 = anchor_batch(root)
+    log_batch(root, s1)
+    b = admit(root, b"second")
+    other = "4gartha.test/other-origin"
+    bdir = batch_dir(root, s1 + 1)
+    bdir.mkdir()
+    (bdir / A.LEAVES_FILE).write_bytes(A.leaves_document(s1, [b]))
+    tree = A.Tree()
+    for rid in (a, b):
+        tree.append(A.leaf_hash(A.record_leaf(rid)))
+    (bdir / A.CHECKPOINT_FILE).write_bytes(A.signed_checkpoint(other, s1 + 1, tree.root(), K["anchor"].signer))
+    log_batch(root, s1 + 1)
+    reason = f"anchor log checkpoints name 2 different origins: {sorted([ORIGIN, other])}"
+    oc = _gov(check(root, a, anchor_policy=policy()))
+    assert oc.status is S.FAIL, oc
+    assert reason in oc.problems, oc.problems
+    assert [t.status for t in A.audit(root, policy()).trust] == [S.PASS, S.NOT_CHECKED]
+    integrity = A.integrity_outcome(A.audit(root))
+    assert integrity.status is S.FAIL and reason in integrity.problems, integrity
+    proc = run_cli(root, "anchor", "verify", "--json")
+    doc = json.loads(proc.stdout)
+    assert (proc.returncode, doc["integrity"]["status"]) == (2, "FAIL"), proc.stdout + proc.stderr
+    assert reason in doc["integrity"]["problems"]
+    pol = write_policy(tmp_path / "verifier" / "anchor-policy")
+    report = json.loads(run_cli(root, "verify", a, "--json", "--anchor-policy", str(pol)).stdout)
+    governance = report["report"]["outcomes"]["governance"]
+    assert governance["status"] == "FAIL" and reason in governance["problems"], governance
+
+
+@needs_ed25519
+def test_C10_a_batch_whose_size_is_not_previous_size_plus_its_records_fails(tmp_path: Path) -> None:
+    # SPEC.md "Batches": the directory's size is P plus the number of records.
+    # Directory 000000000003 holds previous_size 0 and two records, and its
+    # checkpoint is signed for size 3 over those two records and logged. That
+    # is a contradiction among files that were read: FAIL, not NOT_CHECKED.
+    root = init_repo(tmp_path / "repo")
+    rids = sorted([admit(root, b"x"), admit(root, b"y")])
+    s = anchor_batch(root)
+    batch_dir(root, s).rename(batch_dir(root, s + 1))
+    tree = A.Tree()
+    for rid in rids:
+        tree.append(A.leaf_hash(A.record_leaf(rid)))
+    (batch_dir(root, s + 1) / A.CHECKPOINT_FILE).write_bytes(
+        A.signed_checkpoint(ORIGIN, s + 1, tree.root(), K["anchor"].signer))
+    log_batch(root, s + 1)
+    reason = "previous_size 0 plus 2 record(s) is not the directory's tree size 3"
+    oc = _gov(check(root, rids[0], anchor_policy=policy()))
+    assert oc.status is S.FAIL, oc
+    assert any(reason in p for p in oc.problems), oc.problems
+    integrity = A.integrity_outcome(A.audit(root))
+    assert integrity.status is S.FAIL and any(reason in p for p in integrity.problems), integrity
+    proc = run_cli(root, "anchor", "verify", "--json")
+    assert (proc.returncode, json.loads(proc.stdout)["integrity"]["status"]) == (2, "FAIL"), proc.stdout
+
+
 def _tamper_body(root: Path, size: int, p) -> None:
     path = batch_dir(root, size) / A.CHECKPOINT_FILE
     path.write_bytes(path.read_bytes().replace(b"\n%d\n" % size, b"\n%d\n" % (size + 1), 1))
@@ -1076,6 +1170,37 @@ def test_C10_a_failure_anywhere_in_the_anchor_log_fails_every_record(tmp_path: P
     _tampered_cosignature(root, s2, p)
     oc = _gov(check(root, a, anchor_policy=policy()))
     assert oc.status is S.FAIL and any(f"checkpoint {A.batch_name(s2)}" in prob for prob in oc.problems)
+
+
+@needs_ed25519
+def test_C10_a_failure_lists_checkpoint_signature_failures_found_with_it(tmp_path: Path) -> None:
+    # When integrity FAILs, the whole log's trust and every record's governance
+    # FAIL from it. A signature failure under the policy found in the same run
+    # (integrity checks no signature) is listed in those outcomes too, not only
+    # in `ledger anchor verify --json`'s checkpoints. Statuses and exit codes
+    # are those of any integrity FAIL.
+    root, a, d, s1 = anchored_repo(tmp_path / "repo")
+    admit(root, b"later")
+    s2 = anchor_batch(root)
+    log_batch(root, s2)
+    _tampered_cosignature(root, s1, A.parse_sigsum_proof((batch_dir(root, s1) / A.PROOF_FILE).read_bytes()))
+    _unexpected_file(root, s2)
+    pol = write_policy(tmp_path / "verifier" / "anchor-policy")
+    forged = "cosignature by policy witness 'w1' does not verify"
+    structural = f"anchor batch {A.batch_name(s2)}: unexpected file 'notes.txt'"
+    proc = run_cli(root, "anchor", "verify", "--anchor-policy", str(pol), "--json")
+    doc = json.loads(proc.stdout)
+    assert (proc.returncode, doc["integrity"]["status"], doc["trust"]["status"]) == (2, "FAIL", "FAIL"), doc
+    assert [c["status"] for c in doc["checkpoints"]] == ["FAIL", "FAIL"]
+    assert any(forged in r for r in doc["checkpoints"][0]["reasons"])
+    assert [p for p in doc["trust"]["problems"] if forged in p], doc["trust"]["problems"]
+    assert doc["integrity"]["problems"] == [structural]
+    for profile, code in (("integrity", 0), ("governed", 2)):
+        proc = run_cli(root, "verify", a, "--json", "--profile", profile, "--anchor-policy", str(pol))
+        governance = json.loads(proc.stdout)["report"]["outcomes"]["governance"]
+        assert (governance["status"], proc.returncode) == ("FAIL", code), proc.stderr
+        # Each listed once: integrity's own problem, then the signature failure.
+        assert governance["problems"] == [structural, f"checkpoint {A.batch_name(s1)}: {forged}"], governance
 
 
 def _unexpected_file(root: Path, size: int) -> None:
@@ -1182,6 +1307,34 @@ def _unreadable(path: Path, mode: int = 0) -> Iterator[None]:
         yield
     finally:
         path.chmod(old)
+
+
+@needs_posix_permissions
+def test_C8_cli_exits_3_when_a_required_dimension_is_error_even_if_another_fails(tmp_path: Path) -> None:
+    # ASSURANCE.md 3: one required dimension ERROR and another FAIL exits 3, so
+    # 3 alone does not mean that nothing was refuted; --json says which is
+    # which. (C8's file, placed here to share the permission helpers.)
+    from ledger.cas import CasPaths
+
+    root = init_repo(tmp_path / "repo")
+    a = admit(root, b"alpha")
+    b = admit(root, b"beta")
+    d = derive(root, b"alphabeta!", [a, b], concat_transform(), params={"suffix": "!"})
+    records.record_path(root, b).unlink()          # a lineage record is missing: provenance FAIL
+    artifact = CasPaths.from_repo_root(root).object_path(record_of(root, a)["output"]["artifact"])
+    with _unreadable(artifact):                     # an artifact cannot be read: artifact integrity ERROR
+        proc = run_cli(root, "verify", d, "--json")
+        text = run_cli(root, "verify", d)
+    doc = json.loads(proc.stdout)
+    outcomes = doc["report"]["outcomes"]
+    assert (outcomes["artifact_integrity"]["status"], outcomes["provenance_integrity"]["status"]) == ("ERROR", "FAIL")
+    assert doc["profile"]["error"] is True and doc["profile"]["satisfied"] is False
+    assert sorted((u["dimension"], u["status"]) for u in doc["profile"]["unmet"]) == [
+        ("artifact_integrity", "ERROR"), ("provenance_integrity", "FAIL")]
+    assert proc.returncode == 3, proc.stderr
+    assert text.returncode == 3, text.stdout + text.stderr
+    assert (_cli_status(text.stdout, D.ARTIFACT_INTEGRITY), _cli_status(text.stdout, D.PROVENANCE_INTEGRITY)) == (
+        "ERROR", "FAIL")
 
 
 @needs_ed25519
@@ -1477,6 +1630,31 @@ def test_C10_integrity_failure_prevents_governance(tmp_path: Path) -> None:
     assert _gov(report).status is S.NOT_CHECKED and "integrity checks did not pass" in _gov(report).detail
 
 
+@needs_ed25519
+@needs_posix_permissions
+def test_C10_without_a_policy_nothing_in_the_anchor_log_is_read(tmp_path: Path, monkeypatch) -> None:
+    # ASSURANCE.md 5.7, procedure step 1: without a policy, governance is
+    # NOT_CHECKED and nothing is read. An unreadable anchor log, which an audit
+    # would report as ERROR, changes nothing.
+    from ledger.verifier import GOVERNANCE_NO_POLICY
+
+    root, a, d, size = anchored_repo(tmp_path / "repo")
+    with _unreadable(A.anchors_dir(root)):
+        assert A.integrity_outcome(A.audit(root)).status is S.ERROR   # what reading it would give
+        proc = run_cli(root, "verify", d, "--json")
+    doc = json.loads(proc.stdout)
+    governance = doc["report"]["outcomes"]["governance"]
+    assert governance["status"] == "NOT_CHECKED", governance
+    assert governance["detail"] == GOVERNANCE_NO_POLICY and governance["problems"] == []
+    assert (proc.returncode, doc["profile"]["satisfied"]) == (0, True), proc.stderr
+    # In-process too: the anchor module is never entered.
+    def read(*args, **kwargs):
+        raise AssertionError("the anchor log was read without a policy")
+    monkeypatch.setattr(A, "audit", read)
+    monkeypatch.setattr(A, "governance_outcome", read)
+    assert _gov(check(root, d)).status is S.NOT_CHECKED
+
+
 _BLOCK_CRYPTOGRAPHY = (
     "import sys\n"
     "class _Block:\n"
@@ -1620,6 +1798,27 @@ def test_C10_checkpoint_vectors(name: str) -> None:
     assert v["reason"] is None or v["reason"] in why
 
 
+def test_C10_only_ascii_control_characters_are_refused_as_signed_note_defines_them() -> None:
+    # c2sp.org/signed-note@v1.1.0 refuses "ASCII control characters (those
+    # below U+0020) other than newline", and x/mod's note package does the
+    # same. Names (origins, key names) also refuse DEL (U+007F) and Unicode
+    # spaces. U+0080-U+009F are not refused (SPEC.md "Batches"), except that
+    # U+0085 is a Unicode space, which a name refuses as one.
+    for ch in ("\x00", "\x09", "\x1f", "\x7f"):
+        assert A.name_problem(f"4gartha.test/a{ch}b") == "contains a control character", repr(ch)
+    assert A.name_problem("4gartha.test/a\x85b") == "contains a space"
+    for ch in ("\x80", "\x9b", "\x9f"):
+        origin = f"4gartha.test/a{ch}b"
+        assert A.name_problem(origin) is None, repr(ch)
+        assert A.parse_checkpoint_body(A.checkpoint_body(origin, 1, bytes(32))).origin == origin
+    signature = f"— example.org/key {A.b64(bytes(68))}\n"
+    for ch in ("\x80", "\x9f"):
+        text = f"text{ch}\n"
+        assert A.parse_note(f"{text}\n{signature}".encode("utf-8")).text == text.encode("utf-8"), repr(ch)
+    with pytest.raises(A.FormatError, match=r"control character U\+001F \(only newline is allowed\)"):
+        A.parse_note(f"text\x1f\n\n{signature}".encode("utf-8"))
+
+
 @pytest.mark.parametrize("name", sorted(_anchor_by_name("policies")))
 def test_C10_policy_vectors(name: str) -> None:
     v = _anchor_by_name("policies")[name]
@@ -1650,6 +1849,26 @@ def test_C10_sigsum_proof_vectors(name: str) -> None:
     assert got == v["expect"], why
     assert time == v["anchored_no_later_than"]
     assert v["reason"] is None or v["reason"] in why, why
+
+
+def test_C10_the_vectors_are_never_more_lenient_than_the_reference() -> None:
+    # Each checkpoint, policy and proof vector records the reference outcome
+    # beside its expected one (sigsum_go, x_mod_note, sigsum_verify), and
+    # ci/anchor-go checks those records against the reference implementation.
+    # Where the two differ, 4GARTHA is stricter: no vector expects trusted,
+    # accept or PASS where a recorded reference outcome rejects.
+    sections = (("checkpoints", "trusted", ("sigsum_go", "x_mod_note")), ("policies", "accept", ("sigsum_go",)),
+                ("sigsum_proofs", "PASS", ("sigsum_verify",)))
+    lenient = []
+    for section, accepting, references in sections:
+        vectors = ANCHOR_VECTORS[section]
+        assert vectors and any(v["expect"] == accepting for v in vectors), section
+        for v in vectors:
+            for ref in references:
+                assert v[ref] in ("accept", "reject"), (section, v["name"], ref)
+                if v["expect"] == accepting and v[ref] == "reject":
+                    lenient.append((section, v["name"], ref, v[ref]))
+    assert lenient == []
 
 
 # C10, repository side: anchors are add-only and CI checks their integrity.

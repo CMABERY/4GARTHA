@@ -16,6 +16,10 @@ with public test keys and a test-only Sigsum log. Nothing has been anchored in p
   - `leaves.json`: canonical JSON
   - `checkpoint`: a C2SP signed note signed by the anchor key
   - `sigsum.proof`: optional; a Sigsum proof, format version 2
+
+  Every checkpoint names the same origin. Checkpoints refuse ASCII control characters (below
+  U+0020) other than newline, as C2SP signed-note v1.1.0 does, and origins also refuse DEL
+  (U+007F); U+0080 to U+009F are not refused as control characters.
 - **`ledger anchor create`.** Writes the next batch and signs its checkpoint with a local
   Ed25519 key file.
 - **`ledger anchor verify`.** Audits the whole log, for integrity only, or with
@@ -29,6 +33,9 @@ with public test keys and a test-only Sigsum log. Nothing has been anchored in p
   - `anchored_no_later_than` is the integer bound.
   - `anchored_no_later_than_utc` is its UTC form, or null after 9999-12-31T23:59:59Z (Sigsum
     timestamps go up to 2⁶³−1).
+  - `quorum_witnesses` lists the witnesses that met the quorum: those in the policy's quorum
+    whose valid cosignature is no later than the time bound. A policy witness outside the quorum
+    is never listed, and does not affect the time bound.
 - **Partial audits.** An unreadable anchor file or directory makes integrity ERROR, never a
   crash, but every check whose own inputs were read still runs.
   - Roots are recomputed through the known prefix of leaves and no further.
@@ -40,8 +47,16 @@ with public test keys and a test-only Sigsum log. Nothing has been anchored in p
     with each check that could not run and why.
   - `anchor_log.size` in that output is the number of leaves in the known prefix: the whole log
     when integrity passes.
+  - When integrity FAILs, the whole log's trust and every record's governance also list the
+    signature failures under the policy that the same run found in any checkpoint. Statuses and
+    exit codes do not change.
 - **Conformance C10, and `conformance/anchor-v1-vectors.json`.** The vectors are reproducible with
   `tools/anchor_fixtures.py`, and include RFC 6962 known answers and the C2SP signed-note example.
+  A test checks that no vector is more lenient than the reference outcome recorded beside it.
+- **Tests for rules the pre-merge audit found stated but untested:** one origin throughout; a
+  batch's directory size equal to `previous_size` plus its records; at most 65,536 records in a
+  batch and 255 bytes in a name; without a policy, nothing in the anchor log is read; and
+  `ledger verify` exiting 3 when one required dimension is ERROR and another FAIL (C8).
 - **The optional `anchor` extra** (`cryptography`). The base install stays `jsonschema`-only.
 
 ### Changed
@@ -63,6 +78,10 @@ with public test keys and a test-only Sigsum log. Nothing has been anchored in p
 
 ### Tooling
 
+- Planted defects M54 to M61 cover the pre-merge audit's findings: M54 to M59 remove the checks
+  for the rules above (one origin, directory size, the 65,536-record and 255-byte bounds, exit 3,
+  nothing read without a policy); M60 and M61 re-plant the audited `quorum_witnesses` list and
+  the FAIL that left out checkpoint signature failures.
 - Planted defects M52 and M53 re-plant the partial-audit defects from the follow-up review:
   structural checks abandoned when any batch is not sound, and a checkpoint PASS inferred from
   the absence of errors. M34, M46 and M49 now target the restructured code.

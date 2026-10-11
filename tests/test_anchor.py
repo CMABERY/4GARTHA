@@ -125,6 +125,39 @@ def test_policy_threshold_is_bounded_before_conversion(tmp_path: Path) -> None:
     assert "Traceback" not in proc.stderr
 
 
+def test_a_batch_lists_at_most_65536_records() -> None:
+    # SPEC.md "Batches": records holds 1 to 65,536 record IDs. The lower bound
+    # is a vector (empty-records); the upper bound is tested here rather than
+    # in the vectors, where a 65,537-record document would add 4.4 MB.
+    assert A.MAX_BATCH_RECORDS == 65_536
+    rids = sorted(hashlib.sha256(b"record %d" % i).hexdigest() for i in range(A.MAX_BATCH_RECORDS + 1))
+    prev, at_limit = A.parse_leaves(A.leaves_document(7, rids[:A.MAX_BATCH_RECORDS]))
+    assert (prev, len(at_limit)) == (7, A.MAX_BATCH_RECORDS)
+    one_past = A.leaves_document(7, rids)
+    assert len(one_past) < A.MAX_LEAVES_BYTES   # refused for its count, not its size
+    with pytest.raises(A.FormatError, match="lists more than 65536 records"):
+        A.parse_leaves(one_past)
+
+
+def test_names_are_at_most_255_bytes_of_utf8_not_255_characters() -> None:
+    # SPEC.md "Batches" (origins) and tlog-cosignature v1.1.0 (cosigner names):
+    # at most 255 bytes. Each pair below is 255 and 256 bytes of UTF-8; with
+    # two- and three-byte characters the longer one has far fewer than 255
+    # characters, and is still refused.
+    assert A.MAX_NAME_BYTES == 255
+    for ok, too_long in (("a" * 255, "a" * 256), ("é" * 127 + "a", "é" * 128),
+                         ("€" * 85, "€" * 85 + "a")):
+        assert (len(ok.encode("utf-8")), len(too_long.encode("utf-8"))) == (255, 256)
+        assert A.name_problem(ok) is None, ok
+        assert A.name_problem(too_long) == "is longer than 255 bytes", too_long
+    # The same bound for a checkpoint's origin.
+    root = A.b64(bytes(32))
+    origin = "é" * 127 + "a"
+    assert A.parse_checkpoint_body(f"{origin}\n1\n{root}\n".encode("utf-8")).origin == origin
+    with pytest.raises(A.FormatError, match="checkpoint origin is longer than 255 bytes"):
+        A.parse_checkpoint_body(f"{origin}b\n1\n{root}\n".encode("utf-8"))
+
+
 def test_utc_formatting_covers_what_datetime_can_show_and_says_so_beyond() -> None:
     assert A.utc(0) == "1970-01-01T00:00:00Z"
     assert A.utc(1767225800) == "2026-01-01T00:03:20Z"

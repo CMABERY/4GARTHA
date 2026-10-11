@@ -75,6 +75,10 @@ machine, never in CI (ASSURANCE.md 5.7, SPEC.md "Anchor log"):
 The anchor key is dedicated to anchoring, separate from the commit-signing key, and never a
 repository file or CI secret. Phase 2 provisions it.
 
+Before the first `sigsum.proof` is committed, CI's independent check needs an anchor policy
+(`ANCHOR_POLICY` for `ci/verify_anchor_vectors.sh`); without one that proof fails the required
+`Ledger Integrity` check (ASSURANCE.md 5.7, phase 2).
+
 Reviewers: a passing record gate establishes integrity only. Read new transform code yourself. CI
 does not replay it, and a replay that matches would not show the transform is honest (ASSURANCE.md
 5.3). Review changes under `.github/` and `tests/` with the same care: a PR can change the checks

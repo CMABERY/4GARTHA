@@ -362,6 +362,43 @@ CATALOGUE: Tuple[Defect, ...] = (
            tuple((_c(f"test_C10_a_partial_audit_does_not_conclude_past_what_it_could_not_read[{case}]"),
                   r"At index 1 diff: <Status\.PASS: 'PASS'> != <Status\.ERROR: 'ERROR'>")
                  for case in ("correct-leaves", "wrong-leaves"))),
+    # Found in the pre-merge audit: rules the docs stated that no test backed
+    # (M54-M59), and output that did not match the text (M60 and M61 re-plant
+    # the audited code).
+    Defect("M54", "checkpoints under different origins accepted (one origin throughout not checked)",
+           "src/ledger/anchor.py", "    if len(origins) > 1:\n", "    if False:\n",
+           ((_c("test_C10_checkpoints_under_two_origins_fail"), _is("PASS", "FAIL")),)),
+    Defect("M55", "a batch's directory size not checked against previous_size plus its records", "src/ledger/anchor.py",
+           "                if b.previous_size + len(b.records) != b.size:\n                    _batch_fail(",
+           "                if False:\n                    _batch_fail(",
+           ((_c("test_C10_a_batch_whose_size_is_not_previous_size_plus_its_records_fails"), _is("NOT_CHECKED", "FAIL")),)),
+    Defect("M56", "leaves.json accepted with more than 65,536 records", "src/ledger/anchor.py",
+           "    if len(rids) > MAX_BATCH_RECORDS:\n", "    if False:\n",
+           (("tests/test_anchor.py::test_a_batch_lists_at_most_65536_records", r"DID NOT RAISE"),),
+           targets=("tests/test_anchor.py",)),
+    Defect("M57", "names (origins, key names) accepted beyond 255 bytes", "src/ledger/anchor.py",
+           '    if len(name.encode("utf-8", "surrogatepass")) > MAX_NAME_BYTES:\n', "    if False:\n",
+           (("tests/test_anchor.py::test_names_are_at_most_255_bytes_of_utf8_not_255_characters",
+             r"assert None == 'is longer than 255 bytes'"),),
+           targets=("tests/test_anchor.py",)),
+    Defect("M58", "ledger verify exits 2, not 3, when a required dimension is ERROR and another FAIL", "src/ledger/cli.py",
+           "    return 3 if result.error else 2\n",
+           "    return 2 if any(s is Status.FAIL for _, s, _ in result.unmet) else 3 if result.error else 2\n",
+           ((_c("test_C8_cli_exits_3_when_a_required_dimension_is_error_even_if_another_fails"), r"assert 2 == 3"),)),
+    Defect("M59", "the anchor log read without a policy, and its errors reported as governance", "src/ledger/verifier.py",
+           "        o[Dimension.GOVERNANCE] = Outcome(Status.NOT_CHECKED, GOVERNANCE_NO_POLICY)\n",
+           "        o[Dimension.GOVERNANCE] = anchor._log_fail_or_error(anchor.audit(repo_root)) or "
+           "Outcome(Status.NOT_CHECKED, GOVERNANCE_NO_POLICY)\n",
+           ((_c("test_C10_without_a_policy_nothing_in_the_anchor_log_is_read"), r"assert 'ERROR' == 'NOT_CHECKED'"),)),
+    Defect("M60", "quorum_witnesses lists policy witnesses outside the quorum", "src/ledger/anchor.py",
+           "                         if ts <= pt.time and kh in quorum_members(policy.quorum)))\n",
+           "                         if ts <= pt.time))\n",
+           ((_c("test_C10_quorum_witnesses_are_only_those_that_met_the_quorum"),
+             r"assert \['w2', 'w3', 'w4'\] == \['w2', 'w3'\]"),)),
+    Defect("M61", "a checkpoint signature failure left out of a FAIL that integrity also reports", "src/ledger/anchor.py",
+           "                       integ.problems + tuple(p for p in evidence if p not in integ.problems))\n",
+           "                       integ.problems)\n",
+           ((_c("test_C10_a_failure_lists_checkpoint_signature_failures_found_with_it"), r"assert \[\]"),)),
 )
 
 
