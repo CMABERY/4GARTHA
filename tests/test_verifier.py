@@ -215,7 +215,7 @@ def test_package_exports_import_cleanly() -> None:
 
     import ledger
 
-    assert ledger.__version__ == "0.2.0"
+    assert ledger.__version__ == "0.3.0"
     for name in ledger.__all__:
         importlib.import_module(f"ledger.{name}")
     for gone in ("manifest", "verify", "replay"):

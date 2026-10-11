@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Local hardening: reject any modify/delete/rename/copy under ledger/objects, ledger/records
-# or ledger/nodes (detection on this clone only; not a governance control, see ASSURANCE.md).
+# Local hardening: reject any modify/delete/rename/copy under ledger/objects, ledger/records,
+# ledger/anchors or ledger/nodes (detection on this clone only; not a governance control, see
+# ASSURANCE.md).
 python tools/check_append_only.py --cached
 
 # Sprint-1 fencepost (Frozen): run verifier when relevant files are staged.

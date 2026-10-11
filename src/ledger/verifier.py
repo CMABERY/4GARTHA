@@ -12,6 +12,9 @@ Outcome for all seven dimensions. Rules shared by every dimension:
   - Nothing is executed unless artifact and provenance integrity of the whole
     lineage PASS, the caller requested replay, and the replay policy permits
     every runtime involved.
+  - Governance is evaluated only against an anchor trust policy the caller
+    supplies (anchor.py). Without one it is NOT_CHECKED; a policy stored in the
+    repository is never loaded implicitly.
 """
 from __future__ import annotations
 
@@ -21,7 +24,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Tuple
 
-from . import records
+from . import anchor, records
 from .assurance import Dimension, Outcome, Report, Status
 from .cas import CasPaths, sha256_bytes
 from .execution import RESTRICTED, ReplayPolicy, run_transform
@@ -37,10 +40,10 @@ REPRO_NOT_IMPLEMENTED = (
     "environment enforcement is not implemented for 4gartha.record/1; a matching replay "
     "shows the output was reproduced on this host, not that the declared environment was used"
 )
-GOVERNANCE_NOT_IMPLEMENTED = (
-    "no external anchoring evidence is defined for 4gartha.record/1; repository history and "
-    "CI checks are controlled by the repository's writers and cannot establish independently "
-    "protected history"
+GOVERNANCE_NO_POLICY = (
+    "no anchor trust policy supplied (--anchor-policy), so no external anchoring evidence was "
+    "evaluated; a policy in the repository is never used, and repository history and CI checks "
+    "are controlled by the repository's writers and cannot establish independently protected history"
 )
 
 
@@ -140,6 +143,7 @@ def verify(
     policy: ReplayPolicy = RESTRICTED,
     workdir: Optional[Path] = None,
     keep: bool = False,
+    anchor_policy: Optional[anchor.AnchorPolicy] = None,
 ) -> Report:
     targets = tuple(targets)
     cas = CasPaths.from_repo_root(repo_root)
@@ -295,7 +299,14 @@ def verify(
         )
 
     # --- governance -------------------------------------------------------
-    o[Dimension.GOVERNANCE] = Outcome(Status.NOT_CHECKED, GOVERNANCE_NOT_IMPLEMENTED)
+    if anchor_policy is None:
+        o[Dimension.GOVERNANCE] = Outcome(Status.NOT_CHECKED, GOVERNANCE_NO_POLICY)
+    elif (o[Dimension.ARTIFACT_INTEGRITY].status is not Status.PASS
+          or o[Dimension.PROVENANCE_INTEGRITY].status is not Status.PASS):
+        o[Dimension.GOVERNANCE] = Outcome(
+            Status.NOT_CHECKED, "integrity checks did not pass; anchoring evidence was not evaluated")
+    else:
+        o[Dimension.GOVERNANCE] = anchor.governance_outcome(repo_root, list(lin.loaded), anchor_policy)
 
     return Report(targets=targets, outcomes=o, records_checked=len(lin.loaded),
                   transforms_executed=executed, replay_attempts=attempts)
